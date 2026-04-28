@@ -78,6 +78,7 @@ autoeda/
 
 ```bash
 # Clonar o repositório
+mkdir autoeda
 cd autoeda
 git clone https://github.com/bernardp112/AutoEDA
 
