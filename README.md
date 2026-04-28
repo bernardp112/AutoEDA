@@ -102,10 +102,4 @@ pytest
 
 ---
 
-## 📄 Licença
-
-MIT License — veja [LICENSE](LICENSE) para mais detalhes.
-
----
-
 > Desenvolvido como Trabalho de Conclusão de Curso (TCC).
