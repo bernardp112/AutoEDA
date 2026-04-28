@@ -1,8 +1,8 @@
-# autoeda
+# AutoEDA
 
 > **Automated Exploratory Data Analysis Library for Python**
 
-`autoeda` é uma biblioteca Python desenvolvida para automatizar e padronizar a Análise Exploratória de Dados (EDA) em datasets estruturados (dados tabulares), orientando o analista desde as estatísticas descritivas até recomendações de transformação de dados.
+`AutoEDA` é uma biblioteca Python desenvolvida para automatizar e padronizar a Análise Exploratória de Dados (EDA) em datasets estruturados (dados tabulares), orientando o analista desde as estatísticas descritivas até recomendações de transformação de dados.
 
 ---
 
@@ -21,7 +21,7 @@
 ## 📦 Instalação
 
 ```bash
-# Instalar em modo de desenvolvimento (recomendado durante o desenvolvimento do TCC)
+# Instalar em modo de desenvolvimento (recomendado durante o desenvolvimento)
 pip install -e ".[dev]"
 ```
 
@@ -78,8 +78,8 @@ autoeda/
 
 ```bash
 # Clonar o repositório
-git clone https://github.com/your-user/autoeda.git
 cd autoeda
+git clone https://github.com/bernardp112/AutoEDA
 
 # Criar e ativar ambiente virtual
 python -m venv .venv
