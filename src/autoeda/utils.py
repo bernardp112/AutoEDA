@@ -21,6 +21,10 @@ from autoeda.exceptions import (
     UnsupportedLanguageError,
 )
 
+# Amostra usada para testar conversão para datetime sem pagar o custo
+# de converter a coluna inteira quando o dataset é grande.
+_TEMPORAL_SAMPLE_SIZE = 200
+
 
 def validate_dataframe(df: Any) -> pd.DataFrame:
     """Garante que `df` é um pandas.DataFrame não vazio e com colunas.
@@ -28,33 +32,90 @@ def validate_dataframe(df: Any) -> pd.DataFrame:
     Levanta InvalidDataFrameError caso contrário. Retorna o próprio
     DataFrame para permitir uso em cadeia (df = validate_dataframe(df)).
     """
-    raise NotImplementedError
+    if not isinstance(df, pd.DataFrame):
+        raise InvalidDataFrameError(
+            f"Esperado um pandas.DataFrame, recebido {type(df).__name__}."
+        )
+
+    if df.shape[1] == 0:
+        raise InvalidDataFrameError("O DataFrame não possui nenhuma coluna.")
+
+    if df.shape[0] == 0:
+        raise InvalidDataFrameError("O DataFrame não possui nenhuma linha.")
+
+    return df
 
 
 def validate_target(df: pd.DataFrame, target: str | None) -> str | None:
     """Valida a coluna alvo (target), se informada.
 
-    Regras a implementar:
+    Regras:
     - Se target is None, retorna None (análise não supervisionada).
     - Se a coluna não existir em df, levanta InvalidTargetError.
     - Se a coluna for inteiramente nula, levanta InvalidTargetError.
     - Se a coluna tiver um único valor distinto (variância zero),
       levanta InvalidTargetError.
     """
-    raise NotImplementedError
+    if target is None:
+        return None
+
+    if target not in df.columns:
+        raise InvalidTargetError(
+            f"A coluna alvo '{target}' não existe no DataFrame. "
+            f"Colunas disponíveis: {list(df.columns)}."
+        )
+
+    target_series = df[target]
+
+    if target_series.isna().all():
+        raise InvalidTargetError(
+            f"A coluna alvo '{target}' é inteiramente nula."
+        )
+
+    if target_series.nunique(dropna=True) <= 1:
+        raise InvalidTargetError(
+            f"A coluna alvo '{target}' possui um único valor distinto "
+            "e portanto não tem variância para ser analisada."
+        )
+
+    return target
 
 
 def validate_temporal_column(df: pd.DataFrame, temporal_column: str | None) -> str | None:
     """Valida a coluna temporal, se informada.
 
-    Regras a implementar:
+    Regras:
     - Se temporal_column is None, retorna None.
     - Se a coluna não existir em df, levanta InvalidTemporalColumnError.
-    - Se a coluna não puder ser convertida para datetime
-      (pd.to_datetime com errors='raise' em uma amostra), levanta
-      InvalidTemporalColumnError.
+    - Se a coluna não puder ser convertida para datetime (testado em
+      uma amostra), levanta InvalidTemporalColumnError.
     """
-    raise NotImplementedError
+    if temporal_column is None:
+        return None
+
+    if temporal_column not in df.columns:
+        raise InvalidTemporalColumnError(
+            f"A coluna temporal '{temporal_column}' não existe no DataFrame. "
+            f"Colunas disponíveis: {list(df.columns)}."
+        )
+
+    sample = df[temporal_column].dropna().head(_TEMPORAL_SAMPLE_SIZE)
+
+    if sample.empty:
+        raise InvalidTemporalColumnError(
+            f"A coluna temporal '{temporal_column}' não possui valores "
+            "não nulos para validar a conversão para data/hora."
+        )
+
+    try:
+        pd.to_datetime(sample, errors="raise")
+    except (ValueError, TypeError) as exc:
+        raise InvalidTemporalColumnError(
+            f"A coluna temporal '{temporal_column}' não pôde ser "
+            f"convertida para data/hora: {exc}"
+        ) from exc
+
+    return temporal_column
 
 
 def validate_language(language: str) -> str:
@@ -63,7 +124,20 @@ def validate_language(language: str) -> str:
     Levanta UnsupportedLanguageError se `language` não estiver em
     autoeda.config.SUPPORTED_LANGUAGES.
     """
-    raise NotImplementedError
+    if not isinstance(language, str):
+        raise UnsupportedLanguageError(
+            f"O idioma deve ser uma string, recebido {type(language).__name__}."
+        )
+
+    normalized = language.strip().lower()
+
+    if normalized not in SUPPORTED_LANGUAGES:
+        raise UnsupportedLanguageError(
+            f"Idioma '{language}' não suportado. "
+            f"Idiomas disponíveis: {SUPPORTED_LANGUAGES}."
+        )
+
+    return normalized
 
 
 def infer_column_types(
@@ -75,22 +149,73 @@ def infer_column_types(
     Retorna um dict {nome_coluna: tipo}, onde tipo é um de:
     "numeric", "categorical", "datetime", "boolean", "text", "id".
 
-    Notas de implementação futura:
-    - Colunas numéricas com baixa cardinalidade (<=
-      categorical_max_cardinality) devem ser reclassificadas como
-      "categorical".
-    - Colunas com valores 100% únicos (e tipo objeto/int) são fortes
-      candidatas a "id" e devem ser sinalizadas para possível exclusão
-      da análise de correlação/target.
+    Regras aplicadas, em ordem de precedência:
+    1. dtype booleano -> "boolean".
+    2. dtype datetime -> "datetime".
+    3. Coluna 100% de valores únicos (não nulos), não numérica de
+       ponto flutuante e não datetime/booleana -> "id" (candidata a
+       exclusão de correlação/target).
+    4. dtype numérico (int/float):
+       - baixa cardinalidade (<= categorical_max_cardinality) ->
+         "categorical" (ex.: nota de 1 a 5, código de categoria);
+       - caso contrário -> "numeric".
+    5. dtype objeto/category/string -> "categorical" se a cardinalidade
+       for <= categorical_max_cardinality, senão "text" (texto livre,
+       ex.: descrições, comentários).
+
+    Nota: booleano e datetime são checados antes de "id" porque uma
+    coluna de timestamps únicos é semanticamente uma coluna temporal,
+    não um identificador — a distinção importa para o módulo
+    analysis/temporal.py, que depende desse rótulo.
     """
-    raise NotImplementedError
+    column_types: dict[str, str] = {}
+    n_rows = len(df)
+
+    for column in df.columns:
+        series = df[column]
+
+        if pd.api.types.is_bool_dtype(series):
+            column_types[column] = "boolean"
+            continue
+
+        if pd.api.types.is_datetime64_any_dtype(series):
+            column_types[column] = "datetime"
+            continue
+
+        non_null = series.dropna()
+        n_unique = non_null.nunique()
+        is_fully_unique = n_rows > 0 and non_null.shape[0] == n_rows and n_unique == n_rows
+
+        if is_fully_unique and not pd.api.types.is_float_dtype(series):
+            column_types[column] = "id"
+            continue
+
+        if pd.api.types.is_numeric_dtype(series):
+            if n_unique <= categorical_max_cardinality:
+                column_types[column] = "categorical"
+            else:
+                column_types[column] = "numeric"
+            continue
+
+        # objeto / category / string
+        if n_unique <= categorical_max_cardinality:
+            column_types[column] = "categorical"
+        else:
+            column_types[column] = "text"
+
+    return column_types
 
 
 def get_numeric_columns(df: pd.DataFrame) -> list[str]:
     """Retorna a lista de colunas numéricas de `df` (int/float),
     excluindo booleanas.
     """
-    raise NotImplementedError
+    return [
+        column
+        for column in df.columns
+        if pd.api.types.is_numeric_dtype(df[column])
+        and not pd.api.types.is_bool_dtype(df[column])
+    ]
 
 
 def get_categorical_columns(df: pd.DataFrame, categorical_max_cardinality: int) -> list[str]:
@@ -98,4 +223,9 @@ def get_categorical_columns(df: pd.DataFrame, categorical_max_cardinality: int) 
     colunas de tipo objeto/category e colunas numéricas de baixa
     cardinalidade (ver infer_column_types).
     """
-    raise NotImplementedError
+    column_types = infer_column_types(df, categorical_max_cardinality)
+    return [
+        column
+        for column, col_type in column_types.items()
+        if col_type == "categorical"
+    ]
