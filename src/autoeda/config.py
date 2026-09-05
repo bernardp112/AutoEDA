@@ -42,6 +42,13 @@ CORRELATION_HIGH_THRESHOLD = 0.80
 # tratada como categórica na análise (ex.: notas de 1 a 5).
 CATEGORICAL_MAX_CARDINALITY = 20
 
+# Razão (valores únicos não nulos / número de linhas) a partir da qual
+# uma coluna é sinalizada como possível identificador. Não exigimos
+# 100% exato (== 1.0) porque um pequeno número de duplicatas legítimas
+# (reenvio de formulário, erro de digitação pontual) não deveria
+# impedir a detecção de uma coluna que é, na prática, um ID.
+ID_CARDINALITY_RATIO_THRESHOLD = 0.95
+
 
 @dataclass
 class AutoEDAConfig:
@@ -60,6 +67,7 @@ class AutoEDAConfig:
     missing_warning_threshold: float = MISSING_VALUES_WARNING_THRESHOLD
     correlation_high_threshold: float = CORRELATION_HIGH_THRESHOLD
     categorical_max_cardinality: int = CATEGORICAL_MAX_CARDINALITY
+    id_cardinality_ratio_threshold: float = ID_CARDINALITY_RATIO_THRESHOLD
 
     # Colunas a ignorar em todas as análises (ex.: IDs identificados
     # automaticamente ou informados pelo usuário).

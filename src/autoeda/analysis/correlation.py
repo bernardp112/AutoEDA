@@ -94,7 +94,9 @@ def analyze_correlation(df: pd.DataFrame, config: AutoEDAConfig) -> dict[str, An
     (deduplicados por método, já que os dois medem coisas distintas e
     um par pode aparecer forte em um e fraco no outro).
     """
-    column_types = infer_column_types(df, config.categorical_max_cardinality)
+    column_types = infer_column_types(
+        df, config.categorical_max_cardinality, config.id_cardinality_ratio_threshold
+    )
     numeric_columns = [col for col, col_type in column_types.items() if col_type == "numeric"]
 
     if len(numeric_columns) < 2:

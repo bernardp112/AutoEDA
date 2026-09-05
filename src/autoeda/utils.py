@@ -114,6 +114,7 @@ def validate_language(language: str) -> str:
 def infer_column_types(
     df: pd.DataFrame,
     categorical_max_cardinality: int,
+    id_cardinality_ratio_threshold: float = 0.95,
 ) -> dict[str, str]:
     """Classifica cada coluna de `df` em um tipo lógico de análise.
 
@@ -123,9 +124,15 @@ def infer_column_types(
     Regras aplicadas, em ordem de precedência:
     1. dtype booleano -> "boolean".
     2. dtype datetime -> "datetime".
-    3. Coluna 100% de valores únicos (não nulos), não numérica de
-       ponto flutuante e não datetime/booleana -> "id" (candidata a
-       exclusão de correlação/target).
+    3. Razão (valores únicos / total de linhas) >= id_cardinality_ratio_threshold,
+       e não numérica de ponto flutuante e não datetime/booleana -> "id"
+       (candidata a exclusão de correlação/target). Não exigimos 100%
+       exato: uma coluna de identificador com algumas duplicatas
+       legítimas (reenvio de formulário, erro pontual de digitação)
+       ainda deve ser reconhecida como id. A razão usa o total de
+       linhas (não só as não nulas) como denominador, então uma
+       coluna com muitos valores ausentes é penalizada — ausência alta
+       reduz a confiança de que a coluna é, de fato, um identificador.
     4. dtype numérico (int/float):
        - baixa cardinalidade (<= categorical_max_cardinality) ->
          "categorical" (ex.: nota de 1 a 5, código de categoria);
@@ -154,9 +161,11 @@ def infer_column_types(
 
         non_null = series.dropna()
         n_unique = non_null.nunique()
-        is_fully_unique = n_rows > 0 and non_null.shape[0] == n_rows and n_unique == n_rows
+        id_ratio = n_unique / n_rows if n_rows > 0 else 0.0
 
-        if is_fully_unique and not pd.api.types.is_float_dtype(series):
+        is_id_candidate = id_ratio >= id_cardinality_ratio_threshold
+
+        if is_id_candidate and not pd.api.types.is_float_dtype(series):
             column_types[column] = "id"
             continue
 

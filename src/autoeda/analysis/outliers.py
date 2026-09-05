@@ -192,7 +192,9 @@ def analyze_outliers(df: pd.DataFrame, config: AutoEDAConfig) -> dict[str, Any]:
         },
     }
     """
-    column_types = infer_column_types(df, config.categorical_max_cardinality)
+    column_types = infer_column_types(
+        df, config.categorical_max_cardinality, config.id_cardinality_ratio_threshold
+    )
     numeric_columns = [col for col, col_type in column_types.items() if col_type == "numeric"]
 
     columns_report = {

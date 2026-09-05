@@ -268,7 +268,9 @@ def generate_descriptive_stats(
         },
     }
     """
-    column_types = infer_column_types(df, config.categorical_max_cardinality)
+    column_types = infer_column_types(
+        df, config.categorical_max_cardinality, config.id_cardinality_ratio_threshold
+    )
 
     columns_report: dict[str, Any] = {}
     for column, col_type in column_types.items():

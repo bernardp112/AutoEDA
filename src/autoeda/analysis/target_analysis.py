@@ -43,7 +43,9 @@ def get_target_type(df: pd.DataFrame, target: str, config: AutoEDAConfig) -> str
     ainda se aplica; "id" como target é uma configuração incomum mas
     não impedida — cabe ao usuário avaliar a utilidade do resultado).
     """
-    column_types = infer_column_types(df, config.categorical_max_cardinality)
+    column_types = infer_column_types(
+        df, config.categorical_max_cardinality, config.id_cardinality_ratio_threshold
+    )
     target_type = column_types.get(target, "categorical")
     return "numeric" if target_type == "numeric" else "categorical"
 
@@ -265,7 +267,9 @@ def analyze_target(df: pd.DataFrame, target: str, config: AutoEDAConfig) -> dict
     target_type = get_target_type(df, target, config)
     distribution = analyze_target_distribution(df[target], target_type)
 
-    column_types = infer_column_types(df, config.categorical_max_cardinality)
+    column_types = infer_column_types(
+        df, config.categorical_max_cardinality, config.id_cardinality_ratio_threshold
+    )
     predictor_columns = [
         col for col, col_type in column_types.items() if col != target and col_type != "id"
     ]
