@@ -12,7 +12,7 @@ Cada recomendação é um dict com um formato fixo:
     "id": str,                 # identificador curto e estável, ex. "missing_high_idade"
     "column": str | None,      # coluna afetada, ou None para recomendação de dataset inteiro
     "category": str,           # "missing_values" | "outliers" | "correlation" |
-                                # "descriptive" | "target" | "temporal"
+                                # "descriptive" | "target"
     "priority": str,           # "high" | "medium" | "low"
     "issue": str,               # descrição do problema encontrado
     "action": str,               # ação sugerida
@@ -381,84 +381,18 @@ def recommend_from_target(target_result: dict[str, Any]) -> list[dict[str, Any]]
     return recommendations
 
 
-def recommend_from_temporal(temporal_result: dict[str, Any]) -> list[dict[str, Any]]:
-    """Gera recomendações a partir do resultado de
-    analysis.temporal.analyze_temporal.
-
-    Regras:
-    - tendência forte detectada (direction != "estavel" e
-      != "indeterminado") -> sugerir extrair a tendência como feature
-      (ex.: índice de tempo) e/ou aplicar diferenciação se o objetivo
-      for modelar a série em si.
-    - frequência "irregular" -> sugerir reamostrar para uma grade de
-      tempo regular antes de qualquer modelagem de série temporal.
-    """
-    recommendations: list[dict[str, Any]] = []
-
-    trend = temporal_result.get("trend")
-    column = temporal_result.get("value_column") or temporal_result.get("temporal_column")
-
-    if trend and trend["direction"] in ("crescente", "decrescente"):
-        recommendations.append(
-            {
-                "id": "temporal_trend",
-                "column": column,
-                "category": "temporal",
-                "priority": "low",
-                "issue": (
-                    f"Tendência {trend['direction']} detectada ao longo do tempo "
-                    f"(correlação tempo-valor de {trend['correlation']:.2f})."
-                ),
-                "action": (
-                    "Incluir um índice de tempo como feature, ou aplicar "
-                    "diferenciação caso o objetivo seja modelar a série "
-                    "diretamente (ex.: ARIMA)."
-                ),
-                "rationale": (
-                    "Uma tendência não tratada pode ser confundida com efeito de "
-                    "outras variáveis correlacionadas ao tempo (confounding), e "
-                    "modelos de série temporal geralmente assumem estacionariedade."
-                ),
-            }
-        )
-
-    if temporal_result.get("frequency") == "irregular":
-        recommendations.append(
-            {
-                "id": "temporal_irregular_frequency",
-                "column": temporal_result.get("temporal_column"),
-                "category": "temporal",
-                "priority": "low",
-                "issue": "Espaçamento irregular entre as observações temporais.",
-                "action": (
-                    "Reamostrar os dados para uma grade de tempo regular "
-                    "(ex.: diária, semanal) antes de análises de série temporal."
-                ),
-                "rationale": (
-                    "A maioria dos métodos de série temporal assume observações "
-                    "igualmente espaçadas; espaçamento irregular pode distorcer "
-                    "tendência e sazonalidade estimadas."
-                ),
-            }
-        )
-
-    return recommendations
-
-
 def generate_recommendations(
     descriptive_result: dict[str, Any],
     missing_result: dict[str, Any],
     outliers_result: dict[str, Any],
     correlation_result: dict[str, Any],
     target_result: dict[str, Any] | None = None,
-    temporal_result: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Agrega as recomendações de todos os módulos de análise em uma
     única lista, ordenada por prioridade (high -> medium -> low).
 
-    `target_result` e `temporal_result` são opcionais porque nem toda
-    execução do AutoEDA tem uma variável alvo ou uma componente
-    temporal informada (ver a assinatura de autoeda.core.autoeda).
+    `target_result` é opcional porque nem toda execução do AutoEDA tem
+    uma variável alvo informada (ver a assinatura de autoeda.core.autoeda).
 
     Esta é a função consumida por report/json_export.py para montar
     o JSON de recomendações citado no escopo do projeto.
@@ -472,9 +406,6 @@ def generate_recommendations(
 
     if target_result is not None:
         recommendations.extend(recommend_from_target(target_result))
-
-    if temporal_result is not None:
-        recommendations.extend(recommend_from_temporal(temporal_result))
 
     priority_order = {"high": 0, "medium": 1, "low": 2}
     recommendations.sort(key=lambda rec: priority_order.get(rec["priority"], 3))

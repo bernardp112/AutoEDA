@@ -30,12 +30,6 @@ class InvalidTargetError(AutoEDAError):
     """
 
 
-class InvalidTemporalColumnError(AutoEDAError):
-    """Levantada quando a coluna temporal indicada não pode ser usada
-    como tal (não existe, não é conversível para datetime, etc.).
-    """
-
-
 class UnsupportedLanguageError(AutoEDAError):
     """Levantada quando o idioma de saída solicitado não é suportado.
 

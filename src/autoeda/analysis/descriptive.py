@@ -123,8 +123,9 @@ def describe_datetime_column(series: pd.Series) -> dict[str, Any]:
 
     Retorna o intervalo coberto (min/max/amplitude em dias) e a
     granularidade aproximada (menor diferença não nula entre datas
-    consecutivas ordenadas), que ajuda analysis/temporal.py a decidir
-    a frequência de agregação (diária, mensal, etc.).
+    consecutivas ordenadas). Colunas de data ainda são descritas
+    estatisticamente mesmo fora do escopo de série temporal — útil,
+    por exemplo, para reportar a janela de coleta dos dados.
     """
     non_null = pd.to_datetime(series.dropna())
     n_missing = int(series.isna().sum())

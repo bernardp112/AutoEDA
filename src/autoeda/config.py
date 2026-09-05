@@ -42,10 +42,6 @@ CORRELATION_HIGH_THRESHOLD = 0.80
 # tratada como categórica na análise (ex.: notas de 1 a 5).
 CATEGORICAL_MAX_CARDINALITY = 20
 
-# Número mínimo de observações para tentar decomposição/análise
-# temporal (sazonalidade, tendência).
-TEMPORAL_MIN_OBSERVATIONS = 30
-
 
 @dataclass
 class AutoEDAConfig:
@@ -64,7 +60,6 @@ class AutoEDAConfig:
     missing_warning_threshold: float = MISSING_VALUES_WARNING_THRESHOLD
     correlation_high_threshold: float = CORRELATION_HIGH_THRESHOLD
     categorical_max_cardinality: int = CATEGORICAL_MAX_CARDINALITY
-    temporal_min_observations: int = TEMPORAL_MIN_OBSERVATIONS
 
     # Colunas a ignorar em todas as análises (ex.: IDs identificados
     # automaticamente ou informados pelo usuário).

@@ -17,13 +17,8 @@ from autoeda.config import SUPPORTED_LANGUAGES
 from autoeda.exceptions import (
     InvalidDataFrameError,
     InvalidTargetError,
-    InvalidTemporalColumnError,
     UnsupportedLanguageError,
 )
-
-# Amostra usada para testar conversão para datetime sem pagar o custo
-# de converter a coluna inteira quando o dataset é grande.
-_TEMPORAL_SAMPLE_SIZE = 200
 
 
 def validate_dataframe(df: Any) -> pd.DataFrame:
@@ -46,18 +41,28 @@ def validate_dataframe(df: Any) -> pd.DataFrame:
     return df
 
 
-def validate_target(df: pd.DataFrame, target: str | None) -> str | None:
-    """Valida a coluna alvo (target), se informada.
+def validate_target(df: pd.DataFrame, target: str | None) -> str:
+    """Valida a coluna alvo (target) para classificação binária.
+
+    O AutoEDA está restrito a problemas de classificação binária
+    (ver escopo do projeto): o target não é mais opcional, e precisa
+    ter exatamente 2 classes distintas.
 
     Regras:
-    - Se target is None, retorna None (análise não supervisionada).
+    - Se target is None, levanta InvalidTargetError — toda execução
+      do AutoEDA exige uma coluna alvo.
     - Se a coluna não existir em df, levanta InvalidTargetError.
     - Se a coluna for inteiramente nula, levanta InvalidTargetError.
-    - Se a coluna tiver um único valor distinto (variância zero),
-      levanta InvalidTargetError.
+    - Se a coluna tiver um número de classes distintas diferente de 2
+      (0, 1 ou 3+), levanta InvalidTargetError — inclui tanto o caso
+      degenerado (sem variância) quanto multiclasse (fora de escopo).
     """
     if target is None:
-        return None
+        raise InvalidTargetError(
+            "Uma coluna alvo (target) é obrigatória: o AutoEDA está restrito "
+            "a problemas de classificação binária e não realiza análise "
+            "não supervisionada."
+        )
 
     if target not in df.columns:
         raise InvalidTargetError(
@@ -72,50 +77,16 @@ def validate_target(df: pd.DataFrame, target: str | None) -> str | None:
             f"A coluna alvo '{target}' é inteiramente nula."
         )
 
-    if target_series.nunique(dropna=True) <= 1:
+    n_classes = target_series.nunique(dropna=True)
+
+    if n_classes != 2:
         raise InvalidTargetError(
-            f"A coluna alvo '{target}' possui um único valor distinto "
-            "e portanto não tem variância para ser analisada."
+            f"A coluna alvo '{target}' possui {n_classes} classe(s) distinta(s). "
+            "O AutoEDA está restrito a classificação binária: o target precisa "
+            "ter exatamente 2 classes."
         )
 
     return target
-
-
-def validate_temporal_column(df: pd.DataFrame, temporal_column: str | None) -> str | None:
-    """Valida a coluna temporal, se informada.
-
-    Regras:
-    - Se temporal_column is None, retorna None.
-    - Se a coluna não existir em df, levanta InvalidTemporalColumnError.
-    - Se a coluna não puder ser convertida para datetime (testado em
-      uma amostra), levanta InvalidTemporalColumnError.
-    """
-    if temporal_column is None:
-        return None
-
-    if temporal_column not in df.columns:
-        raise InvalidTemporalColumnError(
-            f"A coluna temporal '{temporal_column}' não existe no DataFrame. "
-            f"Colunas disponíveis: {list(df.columns)}."
-        )
-
-    sample = df[temporal_column].dropna().head(_TEMPORAL_SAMPLE_SIZE)
-
-    if sample.empty:
-        raise InvalidTemporalColumnError(
-            f"A coluna temporal '{temporal_column}' não possui valores "
-            "não nulos para validar a conversão para data/hora."
-        )
-
-    try:
-        pd.to_datetime(sample, errors="raise")
-    except (ValueError, TypeError) as exc:
-        raise InvalidTemporalColumnError(
-            f"A coluna temporal '{temporal_column}' não pôde ser "
-            f"convertida para data/hora: {exc}"
-        ) from exc
-
-    return temporal_column
 
 
 def validate_language(language: str) -> str:
@@ -164,9 +135,8 @@ def infer_column_types(
        ex.: descrições, comentários).
 
     Nota: booleano e datetime são checados antes de "id" porque uma
-    coluna de timestamps únicos é semanticamente uma coluna temporal,
-    não um identificador — a distinção importa para o módulo
-    analysis/temporal.py, que depende desse rótulo.
+    coluna de timestamps únicos é semanticamente uma coluna de data,
+    não um identificador, mesmo que cada valor seja único.
     """
     column_types: dict[str, str] = {}
     n_rows = len(df)
