@@ -49,6 +49,30 @@ CATEGORICAL_MAX_CARDINALITY = 20
 # impedir a detecção de uma coluna que é, na prática, um ID.
 ID_CARDINALITY_RATIO_THRESHOLD = 0.95
 
+# Força mínima (métrica bounded em [0,1] ou [-1,1]: Point-Biserial,
+# Spearman, V de Cramér) a partir da qual a associação de um preditor
+# com o target é tratada como candidata a "vazamento direto" — a
+# variável provavelmente é uma proxy do próprio target, não um
+# preditor legítimo. Mutual Information não entra nesse alerta por
+# não ser uma métrica limitada na mesma escala.
+LEAKAGE_ASSOCIATION_THRESHOLD = 0.95
+
+# Nível de significância (alfa) usado para marcar um p-valor como
+# estatisticamente significativo nos testes de associação com o
+# target (Point-Biserial, Qui-quadrado, Spearman).
+SIGNIFICANCE_ALPHA = 0.05
+
+# Número de preditores testados contra o target a partir do qual o
+# relatório inclui um aviso sobre múltiplas comparações (com muitos
+# testes simultâneos, é esperado que algumas associações pareçam
+# "significativas" por acaso).
+MULTIPLE_COMPARISONS_WARNING_THRESHOLD = 10
+
+# Força mínima (mesma escala de LEAKAGE_ASSOCIATION_THRESHOLD) para
+# uma associação com o target ser reportada como "preditor forte"
+# (fora do contexto de vazamento).
+STRONG_ASSOCIATION_THRESHOLD = 0.30
+
 
 @dataclass
 class AutoEDAConfig:
@@ -68,6 +92,10 @@ class AutoEDAConfig:
     correlation_high_threshold: float = CORRELATION_HIGH_THRESHOLD
     categorical_max_cardinality: int = CATEGORICAL_MAX_CARDINALITY
     id_cardinality_ratio_threshold: float = ID_CARDINALITY_RATIO_THRESHOLD
+    leakage_association_threshold: float = LEAKAGE_ASSOCIATION_THRESHOLD
+    significance_alpha: float = SIGNIFICANCE_ALPHA
+    multiple_comparisons_warning_threshold: int = MULTIPLE_COMPARISONS_WARNING_THRESHOLD
+    strong_association_threshold: float = STRONG_ASSOCIATION_THRESHOLD
 
     # Colunas a ignorar em todas as análises (ex.: IDs identificados
     # automaticamente ou informados pelo usuário).

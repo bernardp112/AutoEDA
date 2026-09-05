@@ -320,45 +320,85 @@ def recommend_from_correlation(correlation_result: dict[str, Any]) -> list[dict[
 
 def recommend_from_target(target_result: dict[str, Any]) -> list[dict[str, Any]]:
     """Gera recomendações a partir do resultado de
-    analysis.target_analysis.analyze_target.
+    analysis.target_analysis.analyze_target (target binário).
 
     Regras:
-    - target categórico com imbalance_ratio >= 3 -> sugerir técnica de
-      balanceamento (reamostragem ou pesos de classe).
-    - preditores fortes (já identificados pelo módulo de análise) ->
+    - imbalance_ratio >= 3 -> sugerir técnica de balanceamento
+      (reamostragem ou pesos de classe).
+    - preditores com associação suspeitosamente quase perfeita
+      (possible_leakage) -> alerta de alta prioridade, separado da
+      recomendação de "preditor forte": aqui a hipótese é que a
+      variável é uma proxy do próprio target, não um preditor
+      legítimo.
+    - preditores fortes (mas não classificados como vazamento) ->
       recomendação informativa (prioridade baixa) destacando quais
       features merecem atenção prioritária na modelagem.
+    - aviso de múltiplas comparações (já calculado pelo módulo de
+      análise) -> recomendação informativa sobre como interpretar os
+      p-valores individuais com cautela.
     """
     recommendations: list[dict[str, Any]] = []
-
+    target = target_result["target"]
     distribution = target_result.get("distribution", {})
-    if distribution.get("target_type") == "categorical":
-        imbalance_ratio = distribution.get("imbalance_ratio")
-        if imbalance_ratio is not None and imbalance_ratio >= 3:
-            recommendations.append(
-                {
-                    "id": "target_imbalance",
-                    "column": target_result["target"],
-                    "category": "target",
-                    "priority": "high",
-                    "issue": (
-                        f"Classes do target '{target_result['target']}' desbalanceadas "
-                        f"(razão {imbalance_ratio:.1f}:1 entre a classe mais e a menos "
-                        "frequente)."
-                    ),
-                    "action": (
-                        "Considerar reamostragem (over/undersampling) ou pesos de "
-                        "classe (class_weight) na etapa de modelagem."
-                    ),
-                    "rationale": (
-                        "Desbalanceamento forte tende a enviesar modelos em favor "
-                        "da classe majoritária e a inflar métricas como acurácia "
-                        "sem refletir desempenho real na classe minoritária."
-                    ),
-                }
-            )
 
-    strong_predictors = target_result.get("strong_predictors", [])
+    imbalance_ratio = distribution.get("imbalance_ratio")
+    if imbalance_ratio is not None and imbalance_ratio >= 3:
+        recommendations.append(
+            {
+                "id": "target_imbalance",
+                "column": target,
+                "category": "target",
+                "priority": "high",
+                "issue": (
+                    f"Classes do target '{target}' desbalanceadas: "
+                    f"'{distribution.get('majority_class')}' ({distribution.get('majority_pct', 0):.1%}) "
+                    f"vs '{distribution.get('minority_class')}' ({distribution.get('minority_pct', 0):.1%}), "
+                    f"razão {imbalance_ratio:.1f}:1."
+                ),
+                "action": (
+                    "Considerar reamostragem (over/undersampling ou SMOTE, aplicados "
+                    "somente no conjunto de treino) ou pesos de classe (class_weight) "
+                    "na etapa de modelagem."
+                ),
+                "rationale": (
+                    "Desbalanceamento forte tende a enviesar modelos em favor da "
+                    "classe majoritária. Acurácia isoladamente pode ser enganosa "
+                    "nesse cenário — prefira métricas como F1, recall da classe "
+                    "minoritária ou AUC-ROC."
+                ),
+            }
+        )
+
+    possible_leakage = target_result.get("possible_leakage", [])
+    leaking_predictors = {item["predictor"] for item in possible_leakage}
+    for item in possible_leakage:
+        recommendations.append(
+            {
+                "id": f"target_possible_leakage_{item['predictor']}",
+                "column": item["predictor"],
+                "category": "target",
+                "priority": "high",
+                "issue": (
+                    f"'{item['predictor']}' tem associação muito forte com o target "
+                    f"'{target}' ({item['metric']} = {item['association']:.2f})."
+                ),
+                "action": (
+                    f"Investigar se '{item['predictor']}' é uma proxy do próprio target "
+                    "(ex.: preenchida após o evento que o target representa) antes de "
+                    "usá-la como preditora."
+                ),
+                "rationale": (
+                    "Associação quase perfeita com o target é mais consistente com "
+                    "vazamento de informação do que com um preditor legítimo — "
+                    "incluí-la infla artificialmente o desempenho do modelo em "
+                    "treino/validação sem generalizar para produção."
+                ),
+            }
+        )
+
+    strong_predictors = [
+        p for p in target_result.get("strong_predictors", []) if p not in leaking_predictors
+    ]
     if strong_predictors:
         recommendations.append(
             {
@@ -368,12 +408,33 @@ def recommend_from_target(target_result: dict[str, Any]) -> list[dict[str, Any]]
                 "priority": "low",
                 "issue": (
                     f"{len(strong_predictors)} variável(is) com associação forte ao "
-                    f"target '{target_result['target']}': {', '.join(strong_predictors)}."
+                    f"target '{target}': {', '.join(strong_predictors)}."
                 ),
                 "action": "Priorizar essas variáveis na seleção de features do modelo.",
                 "rationale": (
-                    "Variáveis com associação forte ao target (correlação/eta²/V de "
-                    "Cramér elevados) tendem a carregar mais sinal preditivo."
+                    "Variáveis com associação forte ao target (Point-Biserial, V de "
+                    "Cramér ou Spearman elevados) tendem a carregar mais sinal "
+                    "preditivo."
+                ),
+            }
+        )
+
+    if target_result.get("multiple_comparisons_warning"):
+        recommendations.append(
+            {
+                "id": "target_multiple_comparisons",
+                "column": None,
+                "category": "target",
+                "priority": "low",
+                "issue": target_result["multiple_comparisons_warning"],
+                "action": (
+                    "Interpretar os p-valores individuais dos testes de associação "
+                    "com cautela; preferir os preditores com maior força de "
+                    "associação (não só significância) na seleção de features."
+                ),
+                "rationale": (
+                    "Testar muitos preditores simultaneamente aumenta a chance de "
+                    "falsos positivos (associações 'significativas' por acaso)."
                 ),
             }
         )
