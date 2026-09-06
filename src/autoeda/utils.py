@@ -22,10 +22,20 @@ from autoeda.exceptions import (
 
 
 def validate_dataframe(df: Any) -> pd.DataFrame:
-    """Garante que `df` é um pandas.DataFrame não vazio e com colunas.
+    """Garante que `df` é um pandas.DataFrame utilizável: não vazio,
+    com colunas, sem nomes de coluna duplicados e sem nomes vazios ou
+    do padrão "Unnamed: N" (comum em CSV exportado com uma coluna de
+    índice sem cabeçalho).
 
-    Levanta InvalidDataFrameError caso contrário. Retorna o próprio
-    DataFrame para permitir uso em cadeia (df = validate_dataframe(df)).
+    Levanta InvalidDataFrameError em qualquer uma dessas condições.
+    Validamos isso cedo porque um nome de coluna duplicado quebra
+    silenciosamente vários módulos a jusante (ex.: df[coluna] passa a
+    retornar um DataFrame em vez de uma Series), e um nome vazio/
+    "Unnamed" quase sempre indica erro de exportação, não uma coluna
+    de dado legítima.
+
+    Retorna o próprio DataFrame para permitir uso em cadeia
+    (df = validate_dataframe(df)).
     """
     if not isinstance(df, pd.DataFrame):
         raise InvalidDataFrameError(
@@ -37,6 +47,27 @@ def validate_dataframe(df: Any) -> pd.DataFrame:
 
     if df.shape[0] == 0:
         raise InvalidDataFrameError("O DataFrame não possui nenhuma linha.")
+
+    duplicated_columns = df.columns[df.columns.duplicated()].unique().tolist()
+    if duplicated_columns:
+        raise InvalidDataFrameError(
+            f"O DataFrame possui nome(s) de coluna duplicado(s): {duplicated_columns}. "
+            "Renomeie as colunas antes de usar o AutoEDA."
+        )
+
+    suspicious_columns = [
+        str(column)
+        for column in df.columns
+        if str(column).strip() == "" or str(column).startswith("Unnamed:")
+    ]
+    if suspicious_columns:
+        raise InvalidDataFrameError(
+            f"O DataFrame possui coluna(s) com nome vazio ou no padrão "
+            f"'Unnamed: N': {suspicious_columns}. Isso costuma indicar um "
+            "índice exportado por engano (ex.: `index=True` ao salvar um CSV) "
+            "— revise a exportação ou remova/renomeie essas colunas antes de "
+            "usar o AutoEDA."
+        )
 
     return df
 
