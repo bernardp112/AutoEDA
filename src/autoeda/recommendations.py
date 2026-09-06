@@ -135,6 +135,32 @@ def recommend_from_missing_values(
             }
         )
 
+    for item in missing_result.get("missing_target_association", []):
+        rates_text = ", ".join(f"{cls}={rate:.1%}" for cls, rate in item["rates_by_class"].items())
+        recommendations.append(
+            {
+                "id": f"missing_target_association_{item['column']}",
+                "column": item["column"],
+                "category": "missing_values",
+                "priority": "medium",
+                "issue": (
+                    f"A taxa de ausência de '{item['column']}' difere entre as "
+                    f"classes do target ({rates_text})."
+                ),
+                "action": (
+                    f"Considerar criar uma feature binária indicando a ausência de "
+                    f"'{item['column']}' (missing indicator) além de imputar o valor, "
+                    "e evitar imputar com a média/mediana global sem checar se ela "
+                    "faz sentido para ambas as classes."
+                ),
+                "rationale": (
+                    "Ausência que difere por classe é, em si, informação preditiva "
+                    "(indício de MAR ligado ao problema) — descartá-la na imputação "
+                    "joga fora sinal que o modelo poderia aproveitar."
+                ),
+            }
+        )
+
     return recommendations
 
 

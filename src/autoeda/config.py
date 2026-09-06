@@ -73,6 +73,12 @@ MULTIPLE_COMPARISONS_WARNING_THRESHOLD = 10
 # (fora do contexto de vazamento).
 STRONG_ASSOCIATION_THRESHOLD = 0.30
 
+# Diferença mínima (em pontos percentuais, escala 0-1) entre a taxa de
+# ausência de uma coluna nas duas classes do target para reportar essa
+# diferença como indício de MAR ligado ao problema de classificação
+# (ex.: "renda" falta muito mais entre quem não pagou o empréstimo).
+MISSING_TARGET_RATE_DIFF_THRESHOLD = 0.10
+
 
 @dataclass
 class AutoEDAConfig:
@@ -96,6 +102,7 @@ class AutoEDAConfig:
     significance_alpha: float = SIGNIFICANCE_ALPHA
     multiple_comparisons_warning_threshold: int = MULTIPLE_COMPARISONS_WARNING_THRESHOLD
     strong_association_threshold: float = STRONG_ASSOCIATION_THRESHOLD
+    missing_target_rate_diff_threshold: float = MISSING_TARGET_RATE_DIFF_THRESHOLD
 
     # Colunas a ignorar em todas as análises (ex.: IDs identificados
     # automaticamente ou informados pelo usuário).
