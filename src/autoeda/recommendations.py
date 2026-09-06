@@ -298,6 +298,68 @@ def recommend_from_descriptive(descriptive_result: dict[str, Any]) -> list[dict[
                 }
             )
 
+    for column, info in descriptive_result.get("constant_and_near_zero_variance", {}).items():
+        if info["constant"]:
+            recommendations.append(
+                {
+                    "id": f"constant_{column}",
+                    "column": column,
+                    "category": "descriptive",
+                    "priority": "high",
+                    "issue": f"Coluna '{column}' é constante (um único valor em toda a amostra).",
+                    "action": f"Remover a coluna '{column}' do dataset.",
+                    "rationale": (
+                        "Uma coluna constante tem variância zero e não pode, por "
+                        "definição, contribuir para separar as classes do target."
+                    ),
+                }
+            )
+        else:
+            recommendations.append(
+                {
+                    "id": f"near_zero_variance_{column}",
+                    "column": column,
+                    "category": "descriptive",
+                    "priority": "low",
+                    "issue": (
+                        f"Coluna '{column}' é quase constante: um único valor responde "
+                        f"por {info['top_value_pct']:.1%} das observações."
+                    ),
+                    "action": f"Avaliar remover '{column}' ou tratá-la como baixo poder informativo.",
+                    "rationale": (
+                        "Colunas quase constantes carregam pouca informação para "
+                        "separar as classes, mesmo sem variância tecnicamente zero, "
+                        "e podem instabilizar modelos sensíveis a features de baixa "
+                        "variância."
+                    ),
+                }
+            )
+
+    for column, info in descriptive_result.get("mixed_type_columns", {}).items():
+        recommendations.append(
+            {
+                "id": f"mixed_type_{column}",
+                "column": column,
+                "category": "descriptive",
+                "priority": "medium",
+                "issue": (
+                    f"Coluna '{column}' mistura valores numéricos ({info['numeric_pct']:.1%}) "
+                    f"e não numéricos ({info['non_numeric_pct']:.1%})."
+                ),
+                "action": (
+                    f"Padronizar o formato de '{column}' (ex.: converter valores por "
+                    "extenso para número, ou tratá-los como categoria 'inválido') "
+                    "antes de qualquer análise."
+                ),
+                "rationale": (
+                    "Uma coluna de tipo misto costuma indicar erro de digitação ou "
+                    "de exportação; sem correção, a coluna é mal classificada "
+                    "(numérica vira categórica ou vice-versa) e os cálculos "
+                    "estatísticos ficam distorcidos."
+                ),
+            }
+        )
+
     return recommendations
 
 

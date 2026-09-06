@@ -79,6 +79,22 @@ STRONG_ASSOCIATION_THRESHOLD = 0.30
 # (ex.: "renda" falta muito mais entre quem não pagou o empréstimo).
 MISSING_TARGET_RATE_DIFF_THRESHOLD = 0.10
 
+# Razão (frequência do valor mais comum / frequência do 2º mais comum)
+# a partir da qual uma coluna não-constante é sinalizada como "quase
+# constante" (near-zero variance). Segue a heurística clássica do
+# pacote caret (R): um valor domina tão fortemente os demais que a
+# coluna carrega pouca informação, mesmo sem ser tecnicamente
+# constante. 19 equivale a uma divisão 95/5 entre o valor dominante e
+# o segundo mais frequente.
+NEAR_ZERO_VARIANCE_FREQ_RATIO_THRESHOLD = 19.0
+
+# Percentual máximo de valores únicos (sobre o total de linhas) para
+# uma coluna ser candidata a "quase constante". Combinado com o
+# freq_ratio acima: uma coluna só é sinalizada se AMBOS os critérios
+# indicarem baixa variabilidade — isso evita marcar colunas de alta
+# cardinalidade que só por acaso têm uma categoria dominante.
+NEAR_ZERO_VARIANCE_UNIQUE_PCT_THRESHOLD = 0.10  # 10%
+
 
 @dataclass
 class AutoEDAConfig:
@@ -103,6 +119,8 @@ class AutoEDAConfig:
     multiple_comparisons_warning_threshold: int = MULTIPLE_COMPARISONS_WARNING_THRESHOLD
     strong_association_threshold: float = STRONG_ASSOCIATION_THRESHOLD
     missing_target_rate_diff_threshold: float = MISSING_TARGET_RATE_DIFF_THRESHOLD
+    near_zero_variance_freq_ratio_threshold: float = NEAR_ZERO_VARIANCE_FREQ_RATIO_THRESHOLD
+    near_zero_variance_unique_pct_threshold: float = NEAR_ZERO_VARIANCE_UNIQUE_PCT_THRESHOLD
 
     # Colunas a ignorar em todas as análises (ex.: IDs identificados
     # automaticamente ou informados pelo usuário).
