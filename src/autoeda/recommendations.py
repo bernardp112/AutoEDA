@@ -367,10 +367,14 @@ def recommend_from_correlation(correlation_result: dict[str, Any]) -> list[dict[
     """Gera recomendações a partir do resultado de
     analysis.correlation.analyze_correlation.
 
-    Para cada par de colunas fortemente correlacionadas (já
-    identificado pelo módulo de análise), sugere avaliar a remoção de
-    uma delas — redundância entre preditoras aumenta a variância de
-    modelos lineares (multicolinearidade) sem agregar informação.
+    Cobre 3 sinais independentes:
+    - pares fortemente correlacionados (Pearson/Spearman) -> avaliar
+      remover uma das colunas ou combiná-las.
+    - VIF alto -> mesma recomendação de fundo (redundância), mas
+      motivada pela variável ser explicada pela combinação de
+      *várias* outras, não necessariamente por um único par.
+    - disparidade de escala -> sugerir padronização antes de modelos
+      sensíveis a escala.
     """
     recommendations: list[dict[str, Any]] = []
     seen_pairs: set[tuple[str, str]] = set()
@@ -399,6 +403,57 @@ def recommend_from_correlation(correlation_result: dict[str, Any]) -> list[dict[
                     "Colunas fortemente correlacionadas carregam informação "
                     "redundante; mantê-las ambas aumenta a multicolinearidade "
                     "sem ganho proporcional de sinal."
+                ),
+            }
+        )
+
+    for item in correlation_result.get("high_vif", []):
+        vif_display = "infinito" if item["vif"] == float("inf") else f"{item['vif']:.1f}"
+        recommendations.append(
+            {
+                "id": f"vif_{item['column']}",
+                "column": item["column"],
+                "category": "correlation",
+                "priority": "medium",
+                "issue": f"Coluna '{item['column']}' tem VIF de {vif_display}.",
+                "action": (
+                    f"Avaliar remover '{item['column']}' ou reduzir a dimensionalidade "
+                    "do grupo de variáveis redundantes (ex.: PCA) antes de um modelo "
+                    "linear."
+                ),
+                "rationale": (
+                    "VIF alto indica que a variável é quase uma combinação linear de "
+                    "outras variáveis do dataset — diferente da correlação par a par, "
+                    "o VIF captura redundância multivariada, mesmo quando nenhum par "
+                    "isolado parece fortemente correlacionado."
+                ),
+            }
+        )
+
+    scale_disparity = correlation_result.get("scale_disparity")
+    if scale_disparity:
+        recommendations.append(
+            {
+                "id": "scale_disparity",
+                "column": None,
+                "category": "correlation",
+                "priority": "low",
+                "issue": (
+                    f"'{scale_disparity['largest_scale_column']}' "
+                    f"(desvio padrão {scale_disparity['largest_scale_std']:.2f}) está em "
+                    f"escala muito maior que '{scale_disparity['smallest_scale_column']}' "
+                    f"(desvio padrão {scale_disparity['smallest_scale_std']:.2f}), razão "
+                    f"de {scale_disparity['ratio']:.0f}x."
+                ),
+                "action": (
+                    "Padronizar (StandardScaler) ou normalizar as variáveis numéricas "
+                    "antes de modelos sensíveis a escala (ex.: KNN, SVM, regressão "
+                    "com regularização L1/L2)."
+                ),
+                "rationale": (
+                    "Variáveis em escalas muito diferentes dominam o cálculo de "
+                    "distância ou o termo de regularização apenas por causa da "
+                    "magnitude, não porque carregam mais sinal."
                 ),
             }
         )

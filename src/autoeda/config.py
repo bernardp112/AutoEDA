@@ -95,6 +95,19 @@ NEAR_ZERO_VARIANCE_FREQ_RATIO_THRESHOLD = 19.0
 # cardinalidade que só por acaso têm uma categoria dominante.
 NEAR_ZERO_VARIANCE_UNIQUE_PCT_THRESHOLD = 0.10  # 10%
 
+# VIF (Variance Inflation Factor) a partir do qual uma variável é
+# sinalizada como candidata a multicolinearidade relevante. 5.0 é o
+# corte mais conservador entre as convenções usuais da literatura
+# (algumas fontes usam 10.0); preferimos o mais rigoroso como padrão.
+VIF_THRESHOLD = 5.0
+
+# Razão (desvio padrão da variável de maior escala / desvio padrão da
+# de menor escala) a partir da qual o dataset é sinalizado como tendo
+# variáveis numéricas em escalas muito diferentes, candidatas a
+# padronização antes de modelos sensíveis a escala (distância,
+# regularização).
+SCALE_DISPARITY_RATIO_THRESHOLD = 10.0
+
 
 @dataclass
 class AutoEDAConfig:
@@ -121,6 +134,8 @@ class AutoEDAConfig:
     missing_target_rate_diff_threshold: float = MISSING_TARGET_RATE_DIFF_THRESHOLD
     near_zero_variance_freq_ratio_threshold: float = NEAR_ZERO_VARIANCE_FREQ_RATIO_THRESHOLD
     near_zero_variance_unique_pct_threshold: float = NEAR_ZERO_VARIANCE_UNIQUE_PCT_THRESHOLD
+    vif_threshold: float = VIF_THRESHOLD
+    scale_disparity_ratio_threshold: float = SCALE_DISPARITY_RATIO_THRESHOLD
 
     # Colunas a ignorar em todas as análises (ex.: IDs identificados
     # automaticamente ou informados pelo usuário).
