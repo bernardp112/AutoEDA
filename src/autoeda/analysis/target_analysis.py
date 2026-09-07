@@ -313,6 +313,7 @@ def analyze_target(df: pd.DataFrame, target: str, config: AutoEDAConfig) -> dict
         ],
         "significant_predictors": [<preditores com p_value < config.significance_alpha>],
         "multiple_comparisons_warning": str | None,
+        "n_predictors_tested": int,
     }
     """
     if target not in df.columns:
@@ -401,4 +402,5 @@ def analyze_target(df: pd.DataFrame, target: str, config: AutoEDAConfig) -> dict
         "possible_leakage": possible_leakage,
         "significant_predictors": significant_predictors,
         "multiple_comparisons_warning": multiple_comparisons_warning,
+        "n_predictors_tested": n_tested,
     }

@@ -108,6 +108,24 @@ VIF_THRESHOLD = 5.0
 # regularização).
 SCALE_DISPARITY_RATIO_THRESHOLD = 10.0
 
+# Número de categorias a partir do qual uma coluna categórica (tipo
+# lógico "categorical", portanto já <= categorical_max_cardinality)
+# é sinalizada como "cardinalidade alta" e recebe recomendação de
+# encoding (frequency/target encoding, agrupamento de categorias
+# raras). Colunas do tipo "text" (acima de categorical_max_cardinality)
+# sempre recebem essa recomendação, independente deste valor.
+HIGH_CARDINALITY_WARNING_THRESHOLD = 10
+
+# Percentual mínimo de observações de uma categoria para ela não ser
+# considerada "rara" dentro de uma coluna categórica de alta
+# cardinalidade.
+RARE_CATEGORY_PCT_THRESHOLD = 0.01  # 1%
+
+# Versão do schema do JSON de recomendações — incluída desde já para
+# que consumidores externos possam detectar mudanças de formato no
+# futuro sem depender de inferência heurística.
+RECOMMENDATIONS_SCHEMA_VERSION = "1.0"
+
 
 @dataclass
 class AutoEDAConfig:
@@ -136,6 +154,8 @@ class AutoEDAConfig:
     near_zero_variance_unique_pct_threshold: float = NEAR_ZERO_VARIANCE_UNIQUE_PCT_THRESHOLD
     vif_threshold: float = VIF_THRESHOLD
     scale_disparity_ratio_threshold: float = SCALE_DISPARITY_RATIO_THRESHOLD
+    high_cardinality_warning_threshold: int = HIGH_CARDINALITY_WARNING_THRESHOLD
+    rare_category_pct_threshold: float = RARE_CATEGORY_PCT_THRESHOLD
 
     # Colunas a ignorar em todas as análises (ex.: IDs identificados
     # automaticamente ou informados pelo usuário).
