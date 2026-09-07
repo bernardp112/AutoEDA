@@ -126,6 +126,19 @@ RARE_CATEGORY_PCT_THRESHOLD = 0.01  # 1%
 # futuro sem depender de inferência heurística.
 RECOMMENDATIONS_SCHEMA_VERSION = "1.0"
 
+# Número máximo de colunas (por tipo: numéricas, categóricas) que
+# recebem gráfico individual (histograma/boxplot, barplot). Evita
+# gerar dezenas de gráficos em datasets muito largos — acima do
+# limite, o relatório menciona que os gráficos foram omitidos por
+# volume, mas as estatísticas continuam disponíveis no texto/JSON.
+MAX_CHARTED_COLUMNS_PER_TYPE = 20
+
+# Número máximo de categorias mostradas individualmente em um barplot
+# categórico; o restante é agrupado em "outras", para o gráfico
+# continuar legível em colunas de cardinalidade mais alta (mas ainda
+# dentro do limite de "categorical", não "text").
+MAX_CATEGORIES_IN_BARPLOT = 15
+
 
 @dataclass
 class AutoEDAConfig:
@@ -156,6 +169,8 @@ class AutoEDAConfig:
     scale_disparity_ratio_threshold: float = SCALE_DISPARITY_RATIO_THRESHOLD
     high_cardinality_warning_threshold: int = HIGH_CARDINALITY_WARNING_THRESHOLD
     rare_category_pct_threshold: float = RARE_CATEGORY_PCT_THRESHOLD
+    max_charted_columns_per_type: int = MAX_CHARTED_COLUMNS_PER_TYPE
+    max_categories_in_barplot: int = MAX_CATEGORIES_IN_BARPLOT
 
     # Colunas a ignorar em todas as análises (ex.: IDs identificados
     # automaticamente ou informados pelo usuário).
