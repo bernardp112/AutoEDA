@@ -36,6 +36,7 @@ from sklearn.feature_selection import mutual_info_classif
 
 from autoeda.config import AutoEDAConfig
 from autoeda.exceptions import AnalysisError
+from autoeda.i18n import get_translator
 from autoeda.utils import infer_column_types
 
 # Tipos lógicos (ver utils.infer_column_types) que não entram na
@@ -385,12 +386,9 @@ def analyze_target(df: pd.DataFrame, target: str, config: AutoEDAConfig) -> dict
     multiple_comparisons_warning = None
     if n_tested > config.multiple_comparisons_warning_threshold:
         corrected_alpha = config.significance_alpha / n_tested
-        multiple_comparisons_warning = (
-            f"{n_tested} preditores foram testados contra o target simultaneamente; "
-            "com tantos testes, é esperado que algumas associações pareçam "
-            "significativas por acaso. Considere um nível de significância "
-            f"corrigido (ex.: Bonferroni, alfa ≈ {corrected_alpha:.4f}) ao "
-            "interpretar os p-valores individualmente."
+        t = get_translator(config.language)
+        multiple_comparisons_warning = t(
+            "target.multiple_comparisons_warning", n=n_tested, alpha=corrected_alpha
         )
 
     return {

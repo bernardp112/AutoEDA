@@ -19,6 +19,11 @@ Cada recomendação segue o schema definido pelo orientador:
     "explanation": str,         # evidência + justificativa da recomendação
 }
 
+Todo o texto de "recommendation"/"explanation" é gerado via
+autoeda.i18n (config.language decide pt-br ou en-us) — nenhuma string
+literal de conteúdo fica hardcoded aqui, só os templates em
+i18n/pt_br.py e i18n/en_us.py.
+
 Por design, "recommendation" nunca é uma instrução absoluta ("remova
 a coluna"), e sim uma sugestão a avaliar ("considerar remover",
 "avaliar remover") — decisões de preparação de dados dependem de
@@ -36,6 +41,7 @@ from __future__ import annotations
 from typing import Any
 
 from autoeda.config import RECOMMENDATIONS_SCHEMA_VERSION, AutoEDAConfig
+from autoeda.i18n import get_translator
 
 
 def _build_recommendation(
@@ -72,6 +78,7 @@ def _get_column_type(descriptive_result: dict[str, Any], column: str) -> str | N
 def recommend_from_missing_values(
     missing_result: dict[str, Any],
     descriptive_result: dict[str, Any],
+    config: AutoEDAConfig,
 ) -> list[dict[str, Any]]:
     """Gera recomendações a partir do resultado de
     analysis.missing_values.analyze_missing_values.
@@ -85,12 +92,14 @@ def recommend_from_missing_values(
     - taxa de ausência diferente entre classes do target -> sugerir
       indicador binário de ausência como feature.
     """
+    t = get_translator(config.language)
     recommendations: list[dict[str, Any]] = []
 
     for column, stats in missing_result.get("columns", {}).items():
         severity = stats["severity"]
         column_type = _get_column_type(descriptive_result, column)
         missing_pct_display = round(stats["missing_pct"] * 100, 2)
+        pct_text = f"{stats['missing_pct']:.1%}"
 
         if severity == "high":
             recommendations.append(
@@ -100,22 +109,18 @@ def recommend_from_missing_values(
                     metric="missing_percentage",
                     metric_value=missing_pct_display,
                     severity="high",
-                    recommendation=f"Considerar remover a coluna '{column}' do dataset.",
-                    explanation=(
-                        f"Coluna com {stats['missing_pct']:.1%} de valores ausentes. "
-                        "Percentual muito alto torna a imputação pouco confiável; a "
-                        "coluna tende a agregar mais ruído do que informação útil."
-                    ),
+                    recommendation=t("rec.missing_high.recommendation", column=column),
+                    explanation=t("rec.missing_high.explanation", pct=pct_text),
                 )
             )
             continue
 
         if column_type == "numeric":
-            technique = f"Considerar imputar valores ausentes de '{column}' com a mediana."
-            reason = "A mediana é robusta a outliers, mais segura que a média como padrão."
+            technique = t("rec.missing_numeric.recommendation", column=column)
+            reason = t("rec.missing_numeric.reason")
         else:
-            technique = f"Considerar imputar valores ausentes de '{column}' com a moda (categoria mais frequente)."
-            reason = "Para colunas categóricas, a moda preserva a distribuição original das classes."
+            technique = t("rec.missing_categorical.recommendation", column=column)
+            reason = t("rec.missing_categorical.reason")
 
         recommendations.append(
             _build_recommendation(
@@ -125,7 +130,7 @@ def recommend_from_missing_values(
                 metric_value=missing_pct_display,
                 severity="medium" if severity == "moderate" else "low",
                 recommendation=technique,
-                explanation=f"Coluna com {stats['missing_pct']:.1%} de valores ausentes. {reason}",
+                explanation=t("rec.missing_generic.explanation", pct=pct_text, reason=reason),
             )
         )
 
@@ -139,17 +144,16 @@ def recommend_from_missing_values(
                 metric="missing_correlation",
                 metric_value=round(top_pair["correlation"], 4),
                 severity="medium",
-                recommendation=(
-                    f"Investigar se a ausência conjunta de '{top_pair['column_a']}' e "
-                    f"'{top_pair['column_b']}' reflete um processo comum (ex.: mesma "
-                    "etapa opcional de coleta) antes de imputar cada coluna separadamente."
+                recommendation=t(
+                    "rec.missing_correlated.recommendation",
+                    column_a=top_pair["column_a"],
+                    column_b=top_pair["column_b"],
                 ),
-                explanation=(
-                    f"'{top_pair['column_a']}' e '{top_pair['column_b']}' tendem a estar "
-                    f"ausentes juntas (correlação de ausência {top_pair['correlation']:.2f}). "
-                    "Ausência correlacionada sugere um padrão sistemático (indício de MAR), "
-                    "não aleatório — imputação independente por coluna pode distorcer a "
-                    "relação entre elas."
+                explanation=t(
+                    "rec.missing_correlated.explanation",
+                    column_a=top_pair["column_a"],
+                    column_b=top_pair["column_b"],
+                    corr=top_pair["correlation"],
                 ),
             )
         )
@@ -163,16 +167,9 @@ def recommend_from_missing_values(
                 metric="missing_rate_diff_by_target",
                 metric_value=round(item["diff"] * 100, 2),
                 severity="medium",
-                recommendation=(
-                    f"Considerar criar uma feature binária indicando a ausência de "
-                    f"'{item['column']}' (missing indicator) além de imputar o valor."
-                ),
-                explanation=(
-                    f"A taxa de ausência de '{item['column']}' difere entre as classes "
-                    f"do target ({rates_text}). Ausência que difere por classe é, em si, "
-                    "informação preditiva (indício de MAR ligado ao problema) — "
-                    "descartá-la na imputação joga fora sinal que o modelo poderia "
-                    "aproveitar."
+                recommendation=t("rec.missing_target_assoc.recommendation", column=item["column"]),
+                explanation=t(
+                    "rec.missing_target_assoc.explanation", column=item["column"], rates=rates_text
                 ),
             )
         )
@@ -180,7 +177,7 @@ def recommend_from_missing_values(
     return recommendations
 
 
-def recommend_from_outliers(outliers_result: dict[str, Any]) -> list[dict[str, Any]]:
+def recommend_from_outliers(outliers_result: dict[str, Any], config: AutoEDAConfig) -> list[dict[str, Any]]:
     """Gera recomendações a partir do resultado de
     analysis.outliers.analyze_outliers.
 
@@ -189,6 +186,7 @@ def recommend_from_outliers(outliers_result: dict[str, Any]) -> list[dict[str, A
     (percentuais altos, que podem indicar erro de coleta ou uma
     subpopulação legítima).
     """
+    t = get_translator(config.language)
     recommendations: list[dict[str, Any]] = []
     method = outliers_result.get("method", "iqr")
 
@@ -199,13 +197,13 @@ def recommend_from_outliers(outliers_result: dict[str, Any]) -> list[dict[str, A
         pct_display = round(stats["pct"] * 100, 2)
 
         if stats["pct"] <= 0.05:
-            technique = f"Considerar aplicar winsorização (capping) nos valores extremos de '{column}'."
+            technique = t("rec.outliers.recommendation_low", column=column)
             severity = "low"
-            reason = "baixo, compatível com ruído pontual"
+            reason = t("rec.outliers.reason_low")
         else:
-            technique = f"Investigar manualmente os valores extremos de '{column}' antes de tratá-los."
+            technique = t("rec.outliers.recommendation_medium", column=column)
             severity = "medium"
-            reason = "alto para outliers isolados; pode indicar erro de coleta ou subpopulação distinta"
+            reason = t("rec.outliers.reason_medium")
 
         recommendations.append(
             _build_recommendation(
@@ -215,11 +213,12 @@ def recommend_from_outliers(outliers_result: dict[str, Any]) -> list[dict[str, A
                 metric_value=pct_display,
                 severity=severity,
                 recommendation=technique,
-                explanation=(
-                    f"{stats['count']} outlier(s) detectado(s) ({stats['pct']:.1%} das "
-                    f"observações, método {method}) — percentual {reason}. Outliers não "
-                    "devem ser removidos automaticamente, pois podem representar "
-                    "informação legítima do domínio."
+                explanation=t(
+                    "rec.outliers.explanation",
+                    count=stats["count"],
+                    pct=f"{stats['pct']:.1%}",
+                    method=method,
+                    reason=reason,
                 ),
             )
         )
@@ -235,6 +234,7 @@ def recommend_from_descriptive(descriptive_result: dict[str, Any], config: AutoE
     constantes/quase-constantes, colunas de tipo misto e cardinalidade
     alta em categóricas (recomendação de encoding).
     """
+    t = get_translator(config.language)
     recommendations: list[dict[str, Any]] = []
 
     overview = descriptive_result.get("overview", {})
@@ -246,12 +246,11 @@ def recommend_from_descriptive(descriptive_result: dict[str, Any], config: AutoE
                 metric="duplicate_rows_percentage",
                 metric_value=round(overview["duplicate_rows_pct"] * 100, 2),
                 severity="medium",
-                recommendation="Remover linhas duplicadas antes de qualquer análise/modelagem.",
-                explanation=(
-                    f"{overview['duplicate_rows']} linha(s) duplicada(s) "
-                    f"({overview['duplicate_rows_pct']:.1%} do dataset). Linhas duplicadas "
-                    "distorcem estatísticas descritivas e podem causar vazamento de dados "
-                    "entre treino e teste se não forem removidas antes da divisão."
+                recommendation=t("rec.duplicate_rows.recommendation"),
+                explanation=t(
+                    "rec.duplicate_rows.explanation",
+                    count=overview["duplicate_rows"],
+                    pct=f"{overview['duplicate_rows_pct']:.1%}",
                 ),
             )
         )
@@ -273,13 +272,8 @@ def recommend_from_descriptive(descriptive_result: dict[str, Any], config: AutoE
                     metric="unique_ratio",
                     metric_value=unique_ratio,
                     severity="low",
-                    recommendation=f"Avaliar remover '{column}' de análises de correlação e da modelagem.",
-                    explanation=(
-                        "Coluna identificada como possível identificador (proporção de "
-                        "valores únicos próxima de 100%). Identificadores não carregam "
-                        "relação causal/preditiva com o target; incluí-los pode gerar "
-                        "correlações espúrias."
-                    ),
+                    recommendation=t("rec.id_column.recommendation", column=column),
+                    explanation=t("rec.id_column.explanation"),
                 )
             )
             continue
@@ -287,9 +281,9 @@ def recommend_from_descriptive(descriptive_result: dict[str, Any], config: AutoE
         if col_type == "numeric" and stats.get("skewness") is not None and abs(stats["skewness"]) > 1:
             all_positive = stats.get("min") is not None and stats["min"] > 0
             technique = (
-                f"Considerar aplicar transformação logarítmica em '{column}'."
+                t("rec.skewed.recommendation_log", column=column)
                 if all_positive
-                else f"Considerar aplicar transformação Yeo-Johnson em '{column}' (há valores <= 0)."
+                else t("rec.skewed.recommendation_yeo", column=column)
             )
             recommendations.append(
                 _build_recommendation(
@@ -299,12 +293,7 @@ def recommend_from_descriptive(descriptive_result: dict[str, Any], config: AutoE
                     metric_value=round(stats["skewness"], 4),
                     severity="low",
                     recommendation=technique,
-                    explanation=(
-                        f"Assimetria de {stats['skewness']:.2f}. Distribuições fortemente "
-                        "assimétricas violam a suposição de normalidade de vários modelos "
-                        "e métricas; a transformação aproxima a distribuição de uma forma "
-                        "mais simétrica."
-                    ),
+                    explanation=t("rec.skewed.explanation", skewness=stats["skewness"]),
                 )
             )
 
@@ -321,17 +310,10 @@ def recommend_from_descriptive(descriptive_result: dict[str, Any], config: AutoE
                         metric="cardinality",
                         metric_value=unique_count,
                         severity="low",
-                        recommendation=(
-                            f"Avaliar Frequency Encoding, Target Encoding ou agrupamento "
-                            f"de categorias raras em '{column}' (ou remoção, caso seja "
-                            "possível identificador)."
-                        ),
-                        explanation=(
-                            f"Cardinalidade alta ({unique_count if unique_count is not None else 'muitas'} "
-                            "categorias). One-hot encoding em colunas de alta cardinalidade "
-                            "gera um número excessivo de novas colunas esparsas; técnicas "
-                            "de encoding baseadas em frequência/target ou o agrupamento de "
-                            "categorias raras em 'outros' tendem a generalizar melhor."
+                        recommendation=t("rec.high_cardinality.recommendation", column=column),
+                        explanation=t(
+                            "rec.high_cardinality.explanation",
+                            unique_count=unique_count if unique_count is not None else "muitas/many",
                         ),
                     )
                 )
@@ -345,12 +327,8 @@ def recommend_from_descriptive(descriptive_result: dict[str, Any], config: AutoE
                     metric="top_value_percentage",
                     metric_value=round(info["top_value_pct"] * 100, 2),
                     severity="high",
-                    recommendation=f"Remover a coluna '{column}' do dataset.",
-                    explanation=(
-                        "Coluna constante (um único valor em toda a amostra). Uma coluna "
-                        "constante tem variância zero e não pode, por definição, "
-                        "contribuir para separar as classes do target."
-                    ),
+                    recommendation=t("rec.constant.recommendation", column=column),
+                    explanation=t("rec.constant.explanation"),
                 )
             )
         else:
@@ -361,14 +339,8 @@ def recommend_from_descriptive(descriptive_result: dict[str, Any], config: AutoE
                     metric="top_value_percentage",
                     metric_value=round(info["top_value_pct"] * 100, 2),
                     severity="low",
-                    recommendation=f"Avaliar remover '{column}' ou tratá-la como de baixo poder informativo.",
-                    explanation=(
-                        f"Coluna quase constante: um único valor responde por "
-                        f"{info['top_value_pct']:.1%} das observações. Carrega pouca "
-                        "informação para separar as classes, mesmo sem variância "
-                        "tecnicamente zero, e pode instabilizar modelos sensíveis a "
-                        "features de baixa variância."
-                    ),
+                    recommendation=t("rec.near_zero_variance.recommendation", column=column),
+                    explanation=t("rec.near_zero_variance.explanation", pct=f"{info['top_value_pct']:.1%}"),
                 )
             )
 
@@ -380,16 +352,11 @@ def recommend_from_descriptive(descriptive_result: dict[str, Any], config: AutoE
                 metric="non_numeric_percentage",
                 metric_value=round(info["non_numeric_pct"] * 100, 2),
                 severity="medium",
-                recommendation=(
-                    f"Padronizar o formato de '{column}' (ex.: converter valores por "
-                    "extenso para número, ou tratá-los como categoria 'inválido') "
-                    "antes de qualquer análise."
-                ),
-                explanation=(
-                    f"Coluna mistura valores numéricos ({info['numeric_pct']:.1%}) e não "
-                    f"numéricos ({info['non_numeric_pct']:.1%}). Costuma indicar erro de "
-                    "digitação ou de exportação; sem correção, a coluna é mal "
-                    "classificada e os cálculos estatísticos ficam distorcidos."
+                recommendation=t("rec.mixed_type.recommendation", column=column),
+                explanation=t(
+                    "rec.mixed_type.explanation",
+                    numeric_pct=f"{info['numeric_pct']:.1%}",
+                    non_numeric_pct=f"{info['non_numeric_pct']:.1%}",
                 ),
             )
         )
@@ -397,7 +364,7 @@ def recommend_from_descriptive(descriptive_result: dict[str, Any], config: AutoE
     return recommendations
 
 
-def recommend_from_correlation(correlation_result: dict[str, Any]) -> list[dict[str, Any]]:
+def recommend_from_correlation(correlation_result: dict[str, Any], config: AutoEDAConfig) -> list[dict[str, Any]]:
     """Gera recomendações a partir do resultado de
     analysis.correlation.analyze_correlation.
 
@@ -405,6 +372,7 @@ def recommend_from_correlation(correlation_result: dict[str, Any]) -> list[dict[
     (Pearson/Spearman), VIF alto (redundância multivariada) e
     disparidade de escala entre variáveis numéricas.
     """
+    t = get_translator(config.language)
     recommendations: list[dict[str, Any]] = []
     seen_pairs: set[tuple[str, str]] = set()
 
@@ -421,39 +389,33 @@ def recommend_from_correlation(correlation_result: dict[str, Any]) -> list[dict[
                 metric=pair["method"],
                 metric_value=round(pair["correlation"], 4),
                 severity="medium",
-                recommendation=(
-                    f"Avaliar remover uma das colunas ('{pair['column_a']}' ou "
-                    f"'{pair['column_b']}') ou combiná-las em uma única feature."
+                recommendation=t(
+                    "rec.correlation_pair.recommendation",
+                    column_a=pair["column_a"],
+                    column_b=pair["column_b"],
                 ),
-                explanation=(
-                    f"'{pair['column_a']}' e '{pair['column_b']}' têm correlação "
-                    f"{pair['method']} de {pair['correlation']:.2f}. Colunas fortemente "
-                    "correlacionadas carregam informação redundante; mantê-las ambas "
-                    "aumenta a multicolinearidade sem ganho proporcional de sinal."
+                explanation=t(
+                    "rec.correlation_pair.explanation",
+                    column_a=pair["column_a"],
+                    column_b=pair["column_b"],
+                    method=pair["method"],
+                    corr=pair["correlation"],
                 ),
             )
         )
 
     for item in correlation_result.get("high_vif", []):
         vif_value = item["vif"]
-        vif_display = "infinito" if vif_value == float("inf") else round(vif_value, 2)
+        vif_display = "∞" if vif_value == float("inf") else round(vif_value, 2)
         recommendations.append(
             _build_recommendation(
                 feature=item["column"],
                 problem_type="correlation",
                 metric="vif",
-                metric_value=vif_display,
+                metric_value=str(vif_display) if vif_display == "∞" else vif_display,
                 severity="medium",
-                recommendation=(
-                    f"Avaliar remover '{item['column']}' ou reduzir a dimensionalidade "
-                    "do grupo de variáveis redundantes (ex.: PCA) antes de um modelo linear."
-                ),
-                explanation=(
-                    f"VIF de {vif_display}. VIF alto indica que a variável é quase uma "
-                    "combinação linear de outras variáveis do dataset — diferente da "
-                    "correlação par a par, o VIF captura redundância multivariada, mesmo "
-                    "quando nenhum par isolado parece fortemente correlacionado."
-                ),
+                recommendation=t("rec.vif.recommendation", column=item["column"]),
+                explanation=t("rec.vif.explanation", vif=vif_display),
             )
         )
 
@@ -466,19 +428,14 @@ def recommend_from_correlation(correlation_result: dict[str, Any]) -> list[dict[
                 metric="scale_ratio",
                 metric_value=round(scale_disparity["ratio"], 2),
                 severity="low",
-                recommendation=(
-                    "Padronizar (StandardScaler) ou normalizar as variáveis numéricas "
-                    "antes de modelos sensíveis a escala (ex.: KNN, SVM, regressão com "
-                    "regularização L1/L2)."
-                ),
-                explanation=(
-                    f"'{scale_disparity['largest_scale_column']}' "
-                    f"(desvio padrão {scale_disparity['largest_scale_std']:.2f}) está em "
-                    f"escala muito maior que '{scale_disparity['smallest_scale_column']}' "
-                    f"(desvio padrão {scale_disparity['smallest_scale_std']:.2f}), razão de "
-                    f"{scale_disparity['ratio']:.0f}x. Variáveis em escalas muito diferentes "
-                    "dominam o cálculo de distância ou o termo de regularização apenas "
-                    "por causa da magnitude, não porque carregam mais sinal."
+                recommendation=t("rec.scale_disparity.recommendation"),
+                explanation=t(
+                    "rec.scale_disparity.explanation",
+                    largest_column=scale_disparity["largest_scale_column"],
+                    largest_std=scale_disparity["largest_scale_std"],
+                    smallest_column=scale_disparity["smallest_scale_column"],
+                    smallest_std=scale_disparity["smallest_scale_std"],
+                    ratio=scale_disparity["ratio"],
                 ),
             )
         )
@@ -486,7 +443,7 @@ def recommend_from_correlation(correlation_result: dict[str, Any]) -> list[dict[
     return recommendations
 
 
-def recommend_from_target(target_result: dict[str, Any]) -> list[dict[str, Any]]:
+def recommend_from_target(target_result: dict[str, Any], config: AutoEDAConfig) -> list[dict[str, Any]]:
     """Gera recomendações a partir do resultado de
     analysis.target_analysis.analyze_target (target binário).
 
@@ -494,6 +451,7 @@ def recommend_from_target(target_result: dict[str, Any]) -> list[dict[str, Any]]
     suspeitosamente quase perfeita com o target), preditores fortes e
     aviso de múltiplas comparações.
     """
+    t = get_translator(config.language)
     recommendations: list[dict[str, Any]] = []
     target = target_result["target"]
     distribution = target_result.get("distribution", {})
@@ -507,19 +465,14 @@ def recommend_from_target(target_result: dict[str, Any]) -> list[dict[str, Any]]
                 metric="imbalance_ratio",
                 metric_value=round(imbalance_ratio, 2),
                 severity="high",
-                recommendation=(
-                    "Considerar reamostragem (over/undersampling ou SMOTE, aplicados "
-                    "somente no conjunto de treino) ou pesos de classe (class_weight) "
-                    "na etapa de modelagem."
-                ),
-                explanation=(
-                    f"Classes desbalanceadas: '{distribution.get('majority_class')}' "
-                    f"({distribution.get('majority_pct', 0):.1%}) vs "
-                    f"'{distribution.get('minority_class')}' "
-                    f"({distribution.get('minority_pct', 0):.1%}), razão "
-                    f"{imbalance_ratio:.1f}:1. Acurácia isoladamente pode ser enganosa "
-                    "nesse cenário — prefira métricas como F1, recall da classe "
-                    "minoritária ou AUC-ROC."
+                recommendation=t("rec.target_imbalance.recommendation"),
+                explanation=t(
+                    "rec.target_imbalance.explanation",
+                    majority_class=distribution.get("majority_class"),
+                    majority_pct=f"{distribution.get('majority_pct', 0):.1%}",
+                    minority_class=distribution.get("minority_class"),
+                    minority_pct=f"{distribution.get('minority_pct', 0):.1%}",
+                    ratio=imbalance_ratio,
                 ),
             )
         )
@@ -534,17 +487,11 @@ def recommend_from_target(target_result: dict[str, Any]) -> list[dict[str, Any]]
                 metric=item["metric"],
                 metric_value=round(item["association"], 4),
                 severity="high",
-                recommendation=(
-                    f"Investigar se '{item['predictor']}' é uma proxy do próprio target "
-                    "(ex.: preenchida após o evento que o target representa) antes de "
-                    "usá-la como preditora."
-                ),
-                explanation=(
-                    f"Associação muito forte com o target ({item['metric']} = "
-                    f"{item['association']:.2f}). Associação quase perfeita é mais "
-                    "consistente com vazamento de informação do que com um preditor "
-                    "legítimo — incluí-la infla artificialmente o desempenho do modelo "
-                    "em treino/validação sem generalizar para produção."
+                recommendation=t("rec.target_leakage.recommendation", predictor=item["predictor"]),
+                explanation=t(
+                    "rec.target_leakage.explanation",
+                    metric=item["metric"],
+                    association=item["association"],
                 ),
             )
         )
@@ -560,12 +507,11 @@ def recommend_from_target(target_result: dict[str, Any]) -> list[dict[str, Any]]
                 metric="n_strong_predictors",
                 metric_value=len(strong_predictors),
                 severity="low",
-                recommendation="Priorizar essas variáveis na seleção de features do modelo.",
-                explanation=(
-                    f"{len(strong_predictors)} variável(is) com associação forte ao "
-                    f"target: {', '.join(strong_predictors)}. Variáveis com associação "
-                    "forte (Point-Biserial, V de Cramér ou Spearman elevados) tendem a "
-                    "carregar mais sinal preditivo."
+                recommendation=t("rec.target_strong_predictors.recommendation"),
+                explanation=t(
+                    "rec.target_strong_predictors.explanation",
+                    n=len(strong_predictors),
+                    predictors=", ".join(strong_predictors),
                 ),
             )
         )
@@ -578,11 +524,7 @@ def recommend_from_target(target_result: dict[str, Any]) -> list[dict[str, Any]]
                 metric="n_predictors_tested",
                 metric_value=target_result.get("n_predictors_tested"),
                 severity="low",
-                recommendation=(
-                    "Interpretar os p-valores individuais dos testes de associação com "
-                    "cautela; preferir os preditores com maior força de associação "
-                    "(não só significância) na seleção de features."
-                ),
+                recommendation=t("rec.target_multiple_comparisons.recommendation"),
                 explanation=target_result["multiple_comparisons_warning"],
             )
         )
@@ -590,7 +532,7 @@ def recommend_from_target(target_result: dict[str, Any]) -> list[dict[str, Any]]
     return recommendations
 
 
-def recommend_data_leakage_workflow() -> dict[str, Any]:
+def recommend_data_leakage_workflow(config: AutoEDAConfig) -> dict[str, Any]:
     """Gera o alerta de Data Leakage — uma recomendação de nível
     geral do dataset, não derivada de uma métrica específica, mas de
     um lembrete de fluxo de trabalho que o AutoEDA sempre inclui.
@@ -602,27 +544,15 @@ def recommend_data_leakage_workflow() -> dict[str, Any]:
     (SMOTE) deve ser recalculada apenas no conjunto de treino antes
     de ser aplicada ao conjunto de teste — nunca o contrário.
     """
+    t = get_translator(config.language)
     return _build_recommendation(
         feature=None,
         problem_type="data_leakage",
         metric=None,
         metric_value=None,
         severity="high",
-        recommendation=(
-            "Separar treino e teste antes de calcular qualquer estatística de "
-            "preparação de dados; ajustar imputação, normalização, seleção de "
-            "features e SMOTE apenas no conjunto de treino, e aplicar as mesmas "
-            "transformações (já ajustadas) ao conjunto de teste."
-        ),
-        explanation=(
-            "As estatísticas e recomendações deste relatório foram calculadas sobre "
-            "o dataset completo, para fins de diagnóstico exploratório. Usar médias, "
-            "medianas, categorias ou parâmetros de reamostragem calculados sobre o "
-            "conjunto de teste (ou sobre o dataset inteiro) para preparar os dados "
-            "antes da divisão treino/teste é uma forma comum de vazamento de dados: "
-            "o modelo passa a ter acesso indireto a informação do teste durante o "
-            "treinamento, inflando métricas de validação de forma não realista."
-        ),
+        recommendation=t("rec.data_leakage.recommendation"),
+        explanation=t("rec.data_leakage.explanation"),
     )
 
 
@@ -656,12 +586,12 @@ def generate_recommendations(
     """
     recommendations: list[dict[str, Any]] = []
 
-    recommendations.append(recommend_data_leakage_workflow())
-    recommendations.extend(recommend_from_missing_values(missing_result, descriptive_result))
-    recommendations.extend(recommend_from_outliers(outliers_result))
+    recommendations.append(recommend_data_leakage_workflow(config))
+    recommendations.extend(recommend_from_missing_values(missing_result, descriptive_result, config))
+    recommendations.extend(recommend_from_outliers(outliers_result, config))
     recommendations.extend(recommend_from_descriptive(descriptive_result, config))
-    recommendations.extend(recommend_from_correlation(correlation_result))
-    recommendations.extend(recommend_from_target(target_result))
+    recommendations.extend(recommend_from_correlation(correlation_result, config))
+    recommendations.extend(recommend_from_target(target_result, config))
 
     severity_order = {"high": 0, "medium": 1, "low": 2}
     recommendations.sort(key=lambda rec: severity_order.get(rec["severity"], 3))

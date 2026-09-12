@@ -30,6 +30,7 @@ from typing import Any
 import pandas as pd
 
 from autoeda.config import AutoEDAConfig
+from autoeda.i18n import get_translator
 
 # Correlação mínima (valor absoluto) entre indicadores de ausência de
 # duas colunas para reportá-la como um padrão relevante.
@@ -184,10 +185,11 @@ def build_missingness_mechanism_hints(
     missing_columns: list[str],
     correlated_pairs: list[dict[str, Any]],
     target_associations: list[dict[str, Any]],
+    config: AutoEDAConfig,
 ) -> dict[str, dict[str, Any]]:
     """Monta, para cada coluna com valores ausentes, um indício
     (nunca uma confirmação) sobre o mecanismo de ausência mais
-    provável.
+    provável, no idioma configurado em config.language.
 
     Regras (sempre em linguagem de indício, nunca afirmação):
     - Se a coluna aparece em algum par de ausência correlacionada
@@ -199,6 +201,7 @@ def build_missingness_mechanism_hints(
       próprio valor ausente, ex.: quem ganha muito não informa a
       renda) não pode ser descartado só com os dados observados.
     """
+    t = get_translator(config.language)
     correlated_by_column: dict[str, list[dict[str, Any]]] = {col: [] for col in missing_columns}
     for pair in correlated_pairs:
         for col, other in ((pair["column_a"], pair["column_b"]), (pair["column_b"], pair["column_a"])):
@@ -213,36 +216,25 @@ def build_missingness_mechanism_hints(
 
         for corr_info in correlated_by_column.get(column, []):
             evidence.append(
-                f"ausência correlacionada com a de '{corr_info['with']}' "
-                f"(r={corr_info['correlation']:.2f})"
+                t("missing.evidence.correlated", other=corr_info["with"], corr=corr_info["correlation"])
             )
 
         target_info = target_association_by_column.get(column)
         if target_info is not None:
             rates = ", ".join(f"{cls}={rate:.1%}" for cls, rate in target_info["rates_by_class"].items())
-            evidence.append(f"taxa de ausência difere entre as classes do target ({rates})")
+            evidence.append(t("missing.evidence.target_diff", rates=rates))
 
         if evidence:
             hints[column] = {
-                "hint": "MAR",
+                "hint": t("missing.hint.mar"),
                 "evidence": evidence,
-                "note": (
-                    "Indício de MAR (ausência relacionada a variáveis observadas). "
-                    "Não é uma confirmação — o mecanismo real não pode ser "
-                    "determinado com certeza apenas a partir dos dados."
-                ),
+                "note": t("missing.note.mar"),
             }
         else:
             hints[column] = {
-                "hint": "indeterminado",
+                "hint": t("missing.hint.indeterminate"),
                 "evidence": [],
-                "note": (
-                    "Nenhum indício de MAR encontrado (sem correlação com a "
-                    "ausência de outras colunas nem diferença relevante entre as "
-                    "classes do target). Isso não confirma MCAR: a ausência pode "
-                    "ainda depender do próprio valor não observado (MNAR), o que "
-                    "não é verificável a partir do dataset."
-                ),
+                "note": t("missing.note.indeterminate"),
             }
 
     return hints
@@ -318,7 +310,7 @@ def analyze_missing_values(df: pd.DataFrame, target: str, config: AutoEDAConfig)
         df, target, config.missing_target_rate_diff_threshold
     )
     mechanism_hints = build_missingness_mechanism_hints(
-        missing_columns, correlated_pairs, target_associations
+        missing_columns, correlated_pairs, target_associations, config
     )
 
     columns_report = {
