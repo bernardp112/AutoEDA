@@ -39,7 +39,7 @@ dev = [
 ]
 
 [project.urls]
-Repository = "https://github.com/SEU_USUARIO/autoeda"
+Repository = "https://github.com/bernardp112/AutoEDA"
 
 [tool.setuptools.packages.find]
 where = ["src"]
