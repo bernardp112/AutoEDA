@@ -177,7 +177,7 @@ def plot_numeric_boxplot(df: pd.DataFrame, column: str, output_dir: Path) -> Pat
         return None
 
     fig, ax = plt.subplots(figsize=(4, 5))
-    ax.boxplot(non_null, vert=True, patch_artist=True, boxprops={"facecolor": "#85c1e9"})
+    ax.boxplot(non_null, orientation="vertical", patch_artist=True, boxprops={"facecolor": "#85c1e9"})
     ax.set_ylabel(column)
     ax.set_title(f"Boxplot de '{column}'")
     ax.set_xticks([])
