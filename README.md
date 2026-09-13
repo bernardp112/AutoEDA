@@ -10,13 +10,35 @@ Bibliotecas como o `ydata-profiling` são excelentes para descrever um dataset (
 
 ## Instalação
 
-```bash
-pip install -r requirements.txt
-# ou, em modo desenvolvimento (instala o pacote 'autoeda' via pyproject.toml):
-pip install -e .
-```
+O AutoEDA precisa ser **instalado como pacote** — não basta copiar um script solto para outra pasta, ele precisa achar o pacote `autoeda` (a pasta `src/autoeda/`) em algum lugar do seu ambiente Python.
+
+1. **Extraia o projeto inteiro** (não só um arquivo de exemplo) em uma pasta — o nome da pasta não importa, pode ser `AutoEDA`, `autoeda-project`, o que preferir. O importante é que dentro dela exista `pyproject.toml` e a subpasta `src/autoeda/`.
+
+2. **Abra um terminal dentro dessa pasta** (onde está o `pyproject.toml`):
+
+   ```bash
+   cd caminho/para/AutoEDA
+   ```
+
+3. **Instale o pacote em modo desenvolvimento**:
+
+   ```bash
+   pip install -e .
+   ```
+
+   Isso lê o `pyproject.toml`, instala as dependências (pandas, numpy, matplotlib, scipy, scikit-learn) e registra o pacote `autoeda` no seu Python — depois disso, `from autoeda import autoeda` funciona de **qualquer lugar**, não só de dentro dessa pasta.
 
 Requer Python 3.10+.
+
+> **Erro comum**: `ModuleNotFoundError: No module named 'autoeda'` acontece quando um script (como os de `examples/`) é copiado para outra pasta/ambiente sem o pacote ter sido instalado antes. A solução é sempre o passo 3 acima — depois de instalado, o script pode morar em qualquer pasta.
+>
+> Alternativa rápida para teste, sem instalar o pacote (não recomendada para uso contínuo): rodar a partir da raiz do projeto com o `PYTHONPATH` apontando para `src`:
+> ```bash
+> # Linux/macOS
+> PYTHONPATH=src python examples/example_real_dataset.py
+> # Windows (PowerShell)
+> $env:PYTHONPATH = "src"; python examples\example_real_dataset.py
+> ```
 
 ## Uso básico
 
