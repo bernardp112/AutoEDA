@@ -233,6 +233,17 @@ TRANSLATIONS: dict[str, str] = {
         "inflating validation metrics."
     ),
 
+    # --- analysis.correlation: dataset/VIF notes -------------------------
+    "correlation.note.insufficient_columns": (
+        "Fewer than 2 numeric columns available; correlation, VIF, and scale "
+        "disparity are not applicable to this dataset."
+    ),
+    "correlation.vif.note.insufficient_rows": (
+        "Only {n_samples} complete row(s) for {n_features} variables; VIF is "
+        "not reliable (underdetermined regression)."
+    ),
+    "correlation.vif.note.no_variance": "Variable with no variance; VIF is not defined.",
+
     # --- report/builder: report structure ----------------------------
     "report.title": "AutoEDA Report",
     "report.summary": (

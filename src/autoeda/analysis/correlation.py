@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 
 from autoeda.config import AutoEDAConfig
+from autoeda.i18n import get_translator
 from autoeda.utils import infer_column_types
 
 
@@ -84,7 +85,7 @@ def find_high_correlations(
     return pairs
 
 
-def compute_vif(df: pd.DataFrame, numeric_columns: list[str]) -> dict[str, dict[str, Any]]:
+def compute_vif(df: pd.DataFrame, numeric_columns: list[str], config: AutoEDAConfig) -> dict[str, dict[str, Any]]:
     """Calcula o VIF (Variance Inflation Factor) de cada variável
     numérica em relação a todas as outras.
 
@@ -113,6 +114,7 @@ def compute_vif(df: pd.DataFrame, numeric_columns: list[str]) -> dict[str, dict[
     if len(numeric_columns) < 2:
         return {}
 
+    t = get_translator(config.language)
     complete = df[numeric_columns].dropna()
     n_samples = complete.shape[0]
     n_features = len(numeric_columns)
@@ -121,10 +123,7 @@ def compute_vif(df: pd.DataFrame, numeric_columns: list[str]) -> dict[str, dict[
         return {
             column: {
                 "vif": None,
-                "note": (
-                    f"Apenas {n_samples} linha(s) completa(s) para {n_features} "
-                    "variáveis; VIF não é confiável (regressão subdeterminada)."
-                ),
+                "note": t("correlation.vif.note.insufficient_rows", n_samples=n_samples, n_features=n_features),
             }
             for column in numeric_columns
         }
@@ -145,7 +144,7 @@ def compute_vif(df: pd.DataFrame, numeric_columns: list[str]) -> dict[str, dict[
         ss_tot = float(np.sum((y - y.mean()) ** 2))
 
         if ss_tot == 0:
-            results[column] = {"vif": None, "note": "Variável sem variância; VIF não é definido."}
+            results[column] = {"vif": None, "note": t("correlation.vif.note.no_variance")}
             continue
 
         r_squared = 1 - ss_res / ss_tot
@@ -243,6 +242,7 @@ def analyze_correlation(df: pd.DataFrame, config: AutoEDAConfig) -> dict[str, An
     numeric_columns = [col for col, col_type in column_types.items() if col_type == "numeric"]
 
     if len(numeric_columns) < 2:
+        t = get_translator(config.language)
         return {
             "columns_analyzed": numeric_columns,
             "pearson": {},
@@ -251,10 +251,7 @@ def analyze_correlation(df: pd.DataFrame, config: AutoEDAConfig) -> dict[str, An
             "vif": {},
             "high_vif": [],
             "scale_disparity": None,
-            "note": (
-                "Menos de 2 colunas numéricas disponíveis; correlação, VIF e "
-                "disparidade de escala não são aplicáveis a este dataset."
-            ),
+            "note": t("correlation.note.insufficient_columns"),
         }
 
     pearson_matrix = compute_correlation_matrix(df, numeric_columns, method="pearson")
@@ -263,7 +260,7 @@ def analyze_correlation(df: pd.DataFrame, config: AutoEDAConfig) -> dict[str, An
     high_pearson = find_high_correlations(pearson_matrix, config.correlation_high_threshold, "pearson")
     high_spearman = find_high_correlations(spearman_matrix, config.correlation_high_threshold, "spearman")
 
-    vif_results = compute_vif(df, numeric_columns)
+    vif_results = compute_vif(df, numeric_columns, config)
     high_vif = find_high_vif(vif_results, config.vif_threshold)
 
     return {

@@ -239,6 +239,17 @@ TRANSLATIONS: dict[str, str] = {
         "validação de forma não realista."
     ),
 
+    # --- analysis.correlation: notas de dataset/VIF -------------------------
+    "correlation.note.insufficient_columns": (
+        "Menos de 2 colunas numéricas disponíveis; correlação, VIF e "
+        "disparidade de escala não são aplicáveis a este dataset."
+    ),
+    "correlation.vif.note.insufficient_rows": (
+        "Apenas {n_samples} linha(s) completa(s) para {n_features} variáveis; "
+        "VIF não é confiável (regressão subdeterminada)."
+    ),
+    "correlation.vif.note.no_variance": "Variável sem variância; VIF não é definido.",
+
     # --- report/builder: estrutura do relatório ----------------------------
     "report.title": "Relatório AutoEDA",
     "report.summary": (

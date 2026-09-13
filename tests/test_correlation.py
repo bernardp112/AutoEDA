@@ -48,18 +48,18 @@ class TestComputeVif:
         a = 2 * b + 3 * c + rng.normal(0, 0.01, n)
         df = pd.DataFrame({"a": a, "b": b, "c": c, "independente": rng.normal(0, 1, n)})
 
-        result = compute_vif(df, ["a", "b", "c", "independente"])
+        result = compute_vif(df, ["a", "b", "c", "independente"], AutoEDAConfig())
         assert result["a"]["vif"] > 100
         assert result["independente"]["vif"] < 5
 
     def test_single_numeric_column_returns_empty(self):
         df = pd.DataFrame({"x": range(50)})
-        assert compute_vif(df, ["x"]) == {}
+        assert compute_vif(df, ["x"], AutoEDAConfig()) == {}
 
     def test_perfect_collinearity_returns_infinite_vif(self):
         b = pd.Series(range(100), dtype=float)
         df = pd.DataFrame({"a": b * 2, "b": b})
-        result = compute_vif(df, ["a", "b"])
+        result = compute_vif(df, ["a", "b"], AutoEDAConfig())
         assert result["a"]["vif"] == float("inf")
 
 
