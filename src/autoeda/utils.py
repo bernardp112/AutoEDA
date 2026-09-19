@@ -17,20 +17,25 @@ from autoeda.config import SUPPORTED_LANGUAGES
 from autoeda.exceptions import (
     InvalidDataFrameError,
     InvalidTargetError,
-    InvalidTemporalColumnError,
     UnsupportedLanguageError,
 )
 
-# Amostra usada para testar conversão para datetime sem pagar o custo
-# de converter a coluna inteira quando o dataset é grande.
-_TEMPORAL_SAMPLE_SIZE = 200
-
 
 def validate_dataframe(df: Any) -> pd.DataFrame:
-    """Garante que `df` é um pandas.DataFrame não vazio e com colunas.
+    """Garante que `df` é um pandas.DataFrame utilizável: não vazio,
+    com colunas, sem nomes de coluna duplicados e sem nomes vazios ou
+    do padrão "Unnamed: N" (comum em CSV exportado com uma coluna de
+    índice sem cabeçalho).
 
-    Levanta InvalidDataFrameError caso contrário. Retorna o próprio
-    DataFrame para permitir uso em cadeia (df = validate_dataframe(df)).
+    Levanta InvalidDataFrameError em qualquer uma dessas condições.
+    Validamos isso cedo porque um nome de coluna duplicado quebra
+    silenciosamente vários módulos a jusante (ex.: df[coluna] passa a
+    retornar um DataFrame em vez de uma Series), e um nome vazio/
+    "Unnamed" quase sempre indica erro de exportação, não uma coluna
+    de dado legítima.
+
+    Retorna o próprio DataFrame para permitir uso em cadeia
+    (df = validate_dataframe(df)).
     """
     if not isinstance(df, pd.DataFrame):
         raise InvalidDataFrameError(
@@ -43,21 +48,52 @@ def validate_dataframe(df: Any) -> pd.DataFrame:
     if df.shape[0] == 0:
         raise InvalidDataFrameError("O DataFrame não possui nenhuma linha.")
 
+    duplicated_columns = df.columns[df.columns.duplicated()].unique().tolist()
+    if duplicated_columns:
+        raise InvalidDataFrameError(
+            f"O DataFrame possui nome(s) de coluna duplicado(s): {duplicated_columns}. "
+            "Renomeie as colunas antes de usar o AutoEDA."
+        )
+
+    suspicious_columns = [
+        str(column)
+        for column in df.columns
+        if str(column).strip() == "" or str(column).startswith("Unnamed:")
+    ]
+    if suspicious_columns:
+        raise InvalidDataFrameError(
+            f"O DataFrame possui coluna(s) com nome vazio ou no padrão "
+            f"'Unnamed: N': {suspicious_columns}. Isso costuma indicar um "
+            "índice exportado por engano (ex.: `index=True` ao salvar um CSV) "
+            "— revise a exportação ou remova/renomeie essas colunas antes de "
+            "usar o AutoEDA."
+        )
+
     return df
 
 
-def validate_target(df: pd.DataFrame, target: str | None) -> str | None:
-    """Valida a coluna alvo (target), se informada.
+def validate_target(df: pd.DataFrame, target: str | None) -> str:
+    """Valida a coluna alvo (target) para classificação binária.
+
+    O AutoEDA está restrito a problemas de classificação binária
+    (ver escopo do projeto): o target não é mais opcional, e precisa
+    ter exatamente 2 classes distintas.
 
     Regras:
-    - Se target is None, retorna None (análise não supervisionada).
+    - Se target is None, levanta InvalidTargetError — toda execução
+      do AutoEDA exige uma coluna alvo.
     - Se a coluna não existir em df, levanta InvalidTargetError.
     - Se a coluna for inteiramente nula, levanta InvalidTargetError.
-    - Se a coluna tiver um único valor distinto (variância zero),
-      levanta InvalidTargetError.
+    - Se a coluna tiver um número de classes distintas diferente de 2
+      (0, 1 ou 3+), levanta InvalidTargetError — inclui tanto o caso
+      degenerado (sem variância) quanto multiclasse (fora de escopo).
     """
     if target is None:
-        return None
+        raise InvalidTargetError(
+            "Uma coluna alvo (target) é obrigatória: o AutoEDA está restrito "
+            "a problemas de classificação binária e não realiza análise "
+            "não supervisionada."
+        )
 
     if target not in df.columns:
         raise InvalidTargetError(
@@ -72,50 +108,16 @@ def validate_target(df: pd.DataFrame, target: str | None) -> str | None:
             f"A coluna alvo '{target}' é inteiramente nula."
         )
 
-    if target_series.nunique(dropna=True) <= 1:
+    n_classes = target_series.nunique(dropna=True)
+
+    if n_classes != 2:
         raise InvalidTargetError(
-            f"A coluna alvo '{target}' possui um único valor distinto "
-            "e portanto não tem variância para ser analisada."
+            f"A coluna alvo '{target}' possui {n_classes} classe(s) distinta(s). "
+            "O AutoEDA está restrito a classificação binária: o target precisa "
+            "ter exatamente 2 classes."
         )
 
     return target
-
-
-def validate_temporal_column(df: pd.DataFrame, temporal_column: str | None) -> str | None:
-    """Valida a coluna temporal, se informada.
-
-    Regras:
-    - Se temporal_column is None, retorna None.
-    - Se a coluna não existir em df, levanta InvalidTemporalColumnError.
-    - Se a coluna não puder ser convertida para datetime (testado em
-      uma amostra), levanta InvalidTemporalColumnError.
-    """
-    if temporal_column is None:
-        return None
-
-    if temporal_column not in df.columns:
-        raise InvalidTemporalColumnError(
-            f"A coluna temporal '{temporal_column}' não existe no DataFrame. "
-            f"Colunas disponíveis: {list(df.columns)}."
-        )
-
-    sample = df[temporal_column].dropna().head(_TEMPORAL_SAMPLE_SIZE)
-
-    if sample.empty:
-        raise InvalidTemporalColumnError(
-            f"A coluna temporal '{temporal_column}' não possui valores "
-            "não nulos para validar a conversão para data/hora."
-        )
-
-    try:
-        pd.to_datetime(sample, errors="raise")
-    except (ValueError, TypeError) as exc:
-        raise InvalidTemporalColumnError(
-            f"A coluna temporal '{temporal_column}' não pôde ser "
-            f"convertida para data/hora: {exc}"
-        ) from exc
-
-    return temporal_column
 
 
 def validate_language(language: str) -> str:
@@ -143,6 +145,7 @@ def validate_language(language: str) -> str:
 def infer_column_types(
     df: pd.DataFrame,
     categorical_max_cardinality: int,
+    id_cardinality_ratio_threshold: float = 0.95,
 ) -> dict[str, str]:
     """Classifica cada coluna de `df` em um tipo lógico de análise.
 
@@ -152,9 +155,15 @@ def infer_column_types(
     Regras aplicadas, em ordem de precedência:
     1. dtype booleano -> "boolean".
     2. dtype datetime -> "datetime".
-    3. Coluna 100% de valores únicos (não nulos), não numérica de
-       ponto flutuante e não datetime/booleana -> "id" (candidata a
-       exclusão de correlação/target).
+    3. Razão (valores únicos / total de linhas) >= id_cardinality_ratio_threshold,
+       e não numérica de ponto flutuante e não datetime/booleana -> "id"
+       (candidata a exclusão de correlação/target). Não exigimos 100%
+       exato: uma coluna de identificador com algumas duplicatas
+       legítimas (reenvio de formulário, erro pontual de digitação)
+       ainda deve ser reconhecida como id. A razão usa o total de
+       linhas (não só as não nulas) como denominador, então uma
+       coluna com muitos valores ausentes é penalizada — ausência alta
+       reduz a confiança de que a coluna é, de fato, um identificador.
     4. dtype numérico (int/float):
        - baixa cardinalidade (<= categorical_max_cardinality) ->
          "categorical" (ex.: nota de 1 a 5, código de categoria);
@@ -164,9 +173,8 @@ def infer_column_types(
        ex.: descrições, comentários).
 
     Nota: booleano e datetime são checados antes de "id" porque uma
-    coluna de timestamps únicos é semanticamente uma coluna temporal,
-    não um identificador — a distinção importa para o módulo
-    analysis/temporal.py, que depende desse rótulo.
+    coluna de timestamps únicos é semanticamente uma coluna de data,
+    não um identificador, mesmo que cada valor seja único.
     """
     column_types: dict[str, str] = {}
     n_rows = len(df)
@@ -184,9 +192,11 @@ def infer_column_types(
 
         non_null = series.dropna()
         n_unique = non_null.nunique()
-        is_fully_unique = n_rows > 0 and non_null.shape[0] == n_rows and n_unique == n_rows
+        id_ratio = n_unique / n_rows if n_rows > 0 else 0.0
 
-        if is_fully_unique and not pd.api.types.is_float_dtype(series):
+        is_id_candidate = id_ratio >= id_cardinality_ratio_threshold
+
+        if is_id_candidate and not pd.api.types.is_float_dtype(series):
             column_types[column] = "id"
             continue
 

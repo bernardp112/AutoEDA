@@ -1,75 +1,45 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Distribution / packaging
+*.so
 .Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+.eggs/
 
-# Virtual environments
-.env
-.venv
-env/
+# Ambientes virtuais
+.venv/
 venv/
+env/
 ENV/
-env.bak/
-venv.bak/
 
-# Testing
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
+# Ferramentas de teste/qualidade
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
 htmlcov/
 
-# Jupyter Notebooks
-.ipynb_checkpoints
-*.ipynb_checkpoints/
+# Saída gerada pelo AutoEDA (relatórios, gráficos, JSON de recomendações)
+# Artefatos de execução, não devem ir para o controle de versão.
+autoeda_output/
+*_output/
+outputs/
 
-# IDEs
-.idea/
+# Notebooks (checkpoints do Jupyter)
+.ipynb_checkpoints/
+
+# Editor / SO
 .vscode/
+.idea/
 *.swp
-*.swo
-*~
-
-# macOS
 .DS_Store
-.AppleDouble
-.LSOverride
-
-# Windows
 Thumbs.db
-ehthumbs.db
-Desktop.ini
 
-# Project specific
-reports/output/
-data/raw/
-data/processed/
-*.log
+# Datasets (podem ser grandes ou sensíveis; não versionar por padrão)
+*.csv
+*.xlsx
+*.parquet
+!examples/**/*.csv

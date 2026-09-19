@@ -42,9 +42,102 @@ CORRELATION_HIGH_THRESHOLD = 0.80
 # tratada como categórica na análise (ex.: notas de 1 a 5).
 CATEGORICAL_MAX_CARDINALITY = 20
 
-# Número mínimo de observações para tentar decomposição/análise
-# temporal (sazonalidade, tendência).
-TEMPORAL_MIN_OBSERVATIONS = 30
+# Razão (valores únicos não nulos / número de linhas) a partir da qual
+# uma coluna é sinalizada como possível identificador. Não exigimos
+# 100% exato (== 1.0) porque um pequeno número de duplicatas legítimas
+# (reenvio de formulário, erro de digitação pontual) não deveria
+# impedir a detecção de uma coluna que é, na prática, um ID.
+ID_CARDINALITY_RATIO_THRESHOLD = 0.95
+
+# Força mínima (métrica bounded em [0,1] ou [-1,1]: Point-Biserial,
+# Spearman, V de Cramér) a partir da qual a associação de um preditor
+# com o target é tratada como candidata a "vazamento direto" — a
+# variável provavelmente é uma proxy do próprio target, não um
+# preditor legítimo. Mutual Information não entra nesse alerta por
+# não ser uma métrica limitada na mesma escala.
+LEAKAGE_ASSOCIATION_THRESHOLD = 0.95
+
+# Nível de significância (alfa) usado para marcar um p-valor como
+# estatisticamente significativo nos testes de associação com o
+# target (Point-Biserial, Qui-quadrado, Spearman).
+SIGNIFICANCE_ALPHA = 0.05
+
+# Número de preditores testados contra o target a partir do qual o
+# relatório inclui um aviso sobre múltiplas comparações (com muitos
+# testes simultâneos, é esperado que algumas associações pareçam
+# "significativas" por acaso).
+MULTIPLE_COMPARISONS_WARNING_THRESHOLD = 10
+
+# Força mínima (mesma escala de LEAKAGE_ASSOCIATION_THRESHOLD) para
+# uma associação com o target ser reportada como "preditor forte"
+# (fora do contexto de vazamento).
+STRONG_ASSOCIATION_THRESHOLD = 0.30
+
+# Diferença mínima (em pontos percentuais, escala 0-1) entre a taxa de
+# ausência de uma coluna nas duas classes do target para reportar essa
+# diferença como indício de MAR ligado ao problema de classificação
+# (ex.: "renda" falta muito mais entre quem não pagou o empréstimo).
+MISSING_TARGET_RATE_DIFF_THRESHOLD = 0.10
+
+# Razão (frequência do valor mais comum / frequência do 2º mais comum)
+# a partir da qual uma coluna não-constante é sinalizada como "quase
+# constante" (near-zero variance). Segue a heurística clássica do
+# pacote caret (R): um valor domina tão fortemente os demais que a
+# coluna carrega pouca informação, mesmo sem ser tecnicamente
+# constante. 19 equivale a uma divisão 95/5 entre o valor dominante e
+# o segundo mais frequente.
+NEAR_ZERO_VARIANCE_FREQ_RATIO_THRESHOLD = 19.0
+
+# Percentual máximo de valores únicos (sobre o total de linhas) para
+# uma coluna ser candidata a "quase constante". Combinado com o
+# freq_ratio acima: uma coluna só é sinalizada se AMBOS os critérios
+# indicarem baixa variabilidade — isso evita marcar colunas de alta
+# cardinalidade que só por acaso têm uma categoria dominante.
+NEAR_ZERO_VARIANCE_UNIQUE_PCT_THRESHOLD = 0.10  # 10%
+
+# VIF (Variance Inflation Factor) a partir do qual uma variável é
+# sinalizada como candidata a multicolinearidade relevante. 5.0 é o
+# corte mais conservador entre as convenções usuais da literatura
+# (algumas fontes usam 10.0); preferimos o mais rigoroso como padrão.
+VIF_THRESHOLD = 5.0
+
+# Razão (desvio padrão da variável de maior escala / desvio padrão da
+# de menor escala) a partir da qual o dataset é sinalizado como tendo
+# variáveis numéricas em escalas muito diferentes, candidatas a
+# padronização antes de modelos sensíveis a escala (distância,
+# regularização).
+SCALE_DISPARITY_RATIO_THRESHOLD = 10.0
+
+# Número de categorias a partir do qual uma coluna categórica (tipo
+# lógico "categorical", portanto já <= categorical_max_cardinality)
+# é sinalizada como "cardinalidade alta" e recebe recomendação de
+# encoding (frequency/target encoding, agrupamento de categorias
+# raras). Colunas do tipo "text" (acima de categorical_max_cardinality)
+# sempre recebem essa recomendação, independente deste valor.
+HIGH_CARDINALITY_WARNING_THRESHOLD = 10
+
+# Percentual mínimo de observações de uma categoria para ela não ser
+# considerada "rara" dentro de uma coluna categórica de alta
+# cardinalidade.
+RARE_CATEGORY_PCT_THRESHOLD = 0.01  # 1%
+
+# Versão do schema do JSON de recomendações — incluída desde já para
+# que consumidores externos possam detectar mudanças de formato no
+# futuro sem depender de inferência heurística.
+RECOMMENDATIONS_SCHEMA_VERSION = "1.0"
+
+# Número máximo de colunas (por tipo: numéricas, categóricas) que
+# recebem gráfico individual (histograma/boxplot, barplot). Evita
+# gerar dezenas de gráficos em datasets muito largos — acima do
+# limite, o relatório menciona que os gráficos foram omitidos por
+# volume, mas as estatísticas continuam disponíveis no texto/JSON.
+MAX_CHARTED_COLUMNS_PER_TYPE = 20
+
+# Número máximo de categorias mostradas individualmente em um barplot
+# categórico; o restante é agrupado em "outras", para o gráfico
+# continuar legível em colunas de cardinalidade mais alta (mas ainda
+# dentro do limite de "categorical", não "text").
+MAX_CATEGORIES_IN_BARPLOT = 15
 
 
 @dataclass
@@ -64,7 +157,20 @@ class AutoEDAConfig:
     missing_warning_threshold: float = MISSING_VALUES_WARNING_THRESHOLD
     correlation_high_threshold: float = CORRELATION_HIGH_THRESHOLD
     categorical_max_cardinality: int = CATEGORICAL_MAX_CARDINALITY
-    temporal_min_observations: int = TEMPORAL_MIN_OBSERVATIONS
+    id_cardinality_ratio_threshold: float = ID_CARDINALITY_RATIO_THRESHOLD
+    leakage_association_threshold: float = LEAKAGE_ASSOCIATION_THRESHOLD
+    significance_alpha: float = SIGNIFICANCE_ALPHA
+    multiple_comparisons_warning_threshold: int = MULTIPLE_COMPARISONS_WARNING_THRESHOLD
+    strong_association_threshold: float = STRONG_ASSOCIATION_THRESHOLD
+    missing_target_rate_diff_threshold: float = MISSING_TARGET_RATE_DIFF_THRESHOLD
+    near_zero_variance_freq_ratio_threshold: float = NEAR_ZERO_VARIANCE_FREQ_RATIO_THRESHOLD
+    near_zero_variance_unique_pct_threshold: float = NEAR_ZERO_VARIANCE_UNIQUE_PCT_THRESHOLD
+    vif_threshold: float = VIF_THRESHOLD
+    scale_disparity_ratio_threshold: float = SCALE_DISPARITY_RATIO_THRESHOLD
+    high_cardinality_warning_threshold: int = HIGH_CARDINALITY_WARNING_THRESHOLD
+    rare_category_pct_threshold: float = RARE_CATEGORY_PCT_THRESHOLD
+    max_charted_columns_per_type: int = MAX_CHARTED_COLUMNS_PER_TYPE
+    max_categories_in_barplot: int = MAX_CATEGORIES_IN_BARPLOT
 
     # Colunas a ignorar em todas as análises (ex.: IDs identificados
     # automaticamente ou informados pelo usuário).
