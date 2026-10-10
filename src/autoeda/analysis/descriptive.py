@@ -244,7 +244,11 @@ def detect_constant_and_near_zero_variance(
       frequência do 2º mais comum >= near_zero_variance_freq_ratio_threshold)
       E a cardinalidade é baixa em relação ao total de linhas
       (percent_unique <= near_zero_variance_unique_pct_threshold).
-      Exigir os dois critérios evita marcar colunas de alta
+      Além disso, o valor dominante precisa concentrar pelo menos
+      near_zero_variance_top_value_pct_threshold das observações, o
+      que evita falsos positivos em variáveis contínuas inflacionadas
+      por zeros (ex.: 38% de zeros e o restante disperso).
+      Exigir os critérios combinados evita marcar colunas de alta
       cardinalidade que só por coincidência têm uma categoria um
       pouco mais frequente que as demais.
 
@@ -288,6 +292,7 @@ def detect_constant_and_near_zero_variance(
         is_near_zero = (
             freq_ratio >= config.near_zero_variance_freq_ratio_threshold
             and percent_unique <= config.near_zero_variance_unique_pct_threshold
+            and top_value_pct >= config.near_zero_variance_top_value_pct_threshold
         )
 
         if is_near_zero:

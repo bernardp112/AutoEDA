@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autoeda"
-version = "1.0.0"
+version = "1.0.1"
 description = "Biblioteca de Análise Exploratória de Dados (EDA) automatizada, com recomendações de pré-processamento para problemas de classificação binária."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -39,7 +39,7 @@ dev = [
 ]
 
 [project.urls]
-Repository = "https://github.com/bernardp112/autoeda"
+Repository = "https://github.com/bernardp112/AutoEDA"
 
 [tool.setuptools.packages.find]
 where = ["src"]
