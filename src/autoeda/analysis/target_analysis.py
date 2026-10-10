@@ -33,6 +33,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 from sklearn.feature_selection import mutual_info_classif
+from sklearn.metrics import roc_auc_score
 
 from autoeda.config import AutoEDAConfig
 from autoeda.exceptions import AnalysisError
@@ -163,6 +164,23 @@ def compute_mutual_information(numeric_values: pd.Series, binary_target: pd.Seri
     return {"value": float(mi[0]), "n": int(paired.shape[0])}
 
 
+def compute_single_feature_auc(values: pd.Series, binary_target: pd.Series) -> dict[str, Any]:
+    """AUC de uma única variável como escore contra o target binário,
+    reportada como max(AUC, 1-AUC) (independe da direção da relação).
+
+    Complementa a correlação linear na detecção de vazamento: um alvo
+    definido por limiar sobre a variável (ex.: y = x > 0) tem AUC 1.0
+    mesmo com Point-Biserial moderado.
+    """
+    paired = pd.DataFrame({"x": values, "y": binary_target}).dropna()
+
+    if paired.shape[0] < 3 or paired["x"].nunique() < 2 or paired["y"].nunique() < 2:
+        return {"auc": None, "n": int(paired.shape[0])}
+
+    auc = float(roc_auc_score(paired["y"], paired["x"]))
+    return {"auc": max(auc, 1.0 - auc), "n": int(paired.shape[0])}
+
+
 def compute_chi_square_and_cramers_v(categorical_values: pd.Series, target: pd.Series) -> dict[str, Any]:
     """Calcula o teste Qui-quadrado de independência e o V de Cramér
     (com correção de viés de Bergsma) entre uma variável categórica
@@ -250,6 +268,28 @@ def _get_association_value(predictor_result: dict[str, Any]) -> float | None:
     return None
 
 
+def _leakage_signal(result: dict[str, Any], config: AutoEDAConfig) -> dict[str, Any] | None:
+    """Retorna o sinal de possível vazamento de um preditor, ou None.
+
+    Critério 1: associação principal (correlação/V de Cramér) >=
+    leakage_association_threshold. Critério 2: AUC de variável única
+    >= leakage_auc_threshold (captura relações de limiar/não lineares).
+    """
+    value = _get_association_value(result)
+    if value is not None and abs(value) >= config.leakage_association_threshold:
+        return {
+            "predictor": result["predictor"],
+            "association": value,
+            "metric": "correlation" if "correlation" in result["metrics"] else "cramers_v",
+        }
+
+    auc = result["metrics"].get("auc")
+    if auc is not None and auc >= config.leakage_auc_threshold:
+        return {"predictor": result["predictor"], "association": auc, "metric": "auc"}
+
+    return None
+
+
 def analyze_predictor_vs_target(
     df: pd.DataFrame,
     predictor: str,
@@ -264,6 +304,7 @@ def analyze_predictor_vs_target(
     if predictor_type == "numeric":
         point_biserial = compute_point_biserial(df[predictor], binary_target)
         mutual_info = compute_mutual_information(df[predictor], binary_target)
+        auc = compute_single_feature_auc(df[predictor], binary_target)
         return {
             "predictor": predictor,
             "predictor_type": "numeric",
@@ -272,12 +313,14 @@ def analyze_predictor_vs_target(
                 "correlation": point_biserial["correlation"],
                 "p_value": point_biserial["p_value"],
                 "mutual_information": mutual_info["value"],
+                "auc": auc["auc"],
                 "n": point_biserial["n"],
             },
         }
 
     if predictor_type == "categorical" and _is_ordinal_like(df[predictor]):
         spearman = compute_spearman(df[predictor], binary_target)
+        spearman["auc"] = compute_single_feature_auc(df[predictor], binary_target)["auc"]
         return {
             "predictor": predictor,
             "predictor_type": "categorical_ordinal",
@@ -365,14 +408,7 @@ def analyze_target(df: pd.DataFrame, target: str, config: AutoEDAConfig) -> dict
     ]
 
     possible_leakage = [
-        {
-            "predictor": r["predictor"],
-            "association": _get_association_value(r),
-            "metric": "correlation" if "correlation" in r["metrics"] else "cramers_v",
-        }
-        for r in predictor_results
-        if (value := _get_association_value(r)) is not None
-        and abs(value) >= config.leakage_association_threshold
+        signal for r in predictor_results if (signal := _leakage_signal(r, config)) is not None
     ]
 
     significant_predictors = [

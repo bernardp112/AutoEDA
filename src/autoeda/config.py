@@ -95,6 +95,19 @@ NEAR_ZERO_VARIANCE_FREQ_RATIO_THRESHOLD = 19.0
 # cardinalidade que só por acaso têm uma categoria dominante.
 NEAR_ZERO_VARIANCE_UNIQUE_PCT_THRESHOLD = 0.10  # 10%
 
+# Percentual mínimo de observações que o valor mais frequente precisa
+# concentrar para a coluna ser "quase constante". Evita falsos
+# positivos em variáveis contínuas inflacionadas por zeros (ex.: uma
+# coluna com 38% de zeros e o restante muito disperso tem freq_ratio
+# alto, mas está longe de ser quase constante).
+NEAR_ZERO_VARIANCE_TOP_VALUE_PCT_THRESHOLD = 0.90  # 90%
+
+# AUC de uma única variável contra o target a partir do qual ela é
+# candidata a vazamento direto (usa max(AUC, 1-AUC)). Captura
+# relações não lineares/de limiar (ex.: target = x > 0) que a
+# correlação de Point-Biserial subestima.
+LEAKAGE_AUC_THRESHOLD = 0.99
+
 # VIF (Variance Inflation Factor) a partir do qual uma variável é
 # sinalizada como candidata a multicolinearidade relevante. 5.0 é o
 # corte mais conservador entre as convenções usuais da literatura
@@ -165,6 +178,8 @@ class AutoEDAConfig:
     missing_target_rate_diff_threshold: float = MISSING_TARGET_RATE_DIFF_THRESHOLD
     near_zero_variance_freq_ratio_threshold: float = NEAR_ZERO_VARIANCE_FREQ_RATIO_THRESHOLD
     near_zero_variance_unique_pct_threshold: float = NEAR_ZERO_VARIANCE_UNIQUE_PCT_THRESHOLD
+    near_zero_variance_top_value_pct_threshold: float = NEAR_ZERO_VARIANCE_TOP_VALUE_PCT_THRESHOLD
+    leakage_auc_threshold: float = LEAKAGE_AUC_THRESHOLD
     vif_threshold: float = VIF_THRESHOLD
     scale_disparity_ratio_threshold: float = SCALE_DISPARITY_RATIO_THRESHOLD
     high_cardinality_warning_threshold: int = HIGH_CARDINALITY_WARNING_THRESHOLD

@@ -94,3 +94,12 @@ class TestMixedTypeColumns:
         df = pd.DataFrame({"col": range(50)})
         result = detect_mixed_type_columns(df)
         assert "col" not in result
+
+
+class TestNearZeroVarianceTopValueCriterion:
+    def test_zero_inflated_continuous_column_not_flagged(self, config):
+        # ~38% de zeros e o restante disperso: freq_ratio alto, mas não é quase constante
+        rng = np.random.default_rng(0)
+        values = np.where(rng.random(5000) < 0.38, 0.0, rng.lognormal(10, 1, 5000).round(2))
+        df = pd.DataFrame({"debt": values})
+        assert "debt" not in detect_constant_and_near_zero_variance(df, config)

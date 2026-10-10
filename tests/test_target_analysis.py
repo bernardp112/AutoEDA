@@ -110,3 +110,20 @@ class TestComputeChiSquareAndCramersV:
         b = pd.Series(["p", "q"] * 10)
         result = compute_chi_square_and_cramers_v(a, b)
         assert result["cramers_v"] is None
+
+
+class TestLeakageViaSingleFeatureAuc:
+    def test_threshold_target_flagged_by_auc_despite_moderate_correlation(self, config):
+        rng = np.random.default_rng(0)
+        x = rng.lognormal(mean=0, sigma=1.5, size=2000) - 1.0
+        df = pd.DataFrame({"x": x, "ruido": rng.normal(size=2000), "y": (x > 0).astype(int)})
+        result = analyze_target(df, "y", config)
+        flagged = {item["predictor"]: item for item in result["possible_leakage"]}
+        assert "x" in flagged
+        assert flagged["x"]["metric"] == "auc"
+        assert "ruido" not in flagged
+
+    def test_weak_predictor_not_flagged(self, config):
+        rng = np.random.default_rng(1)
+        df = pd.DataFrame({"a": rng.normal(size=500), "y": rng.integers(0, 2, size=500)})
+        assert analyze_target(df, "y", config)["possible_leakage"] == []
