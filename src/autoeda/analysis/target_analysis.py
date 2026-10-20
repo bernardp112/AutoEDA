@@ -207,7 +207,13 @@ def compute_chi_square_and_cramers_v(categorical_values: pd.Series, target: pd.S
     if n_rows < 2 or n_cols < 2:
         return {"chi2": None, "p_value": None, "cramers_v": None, "n": int(paired.shape[0])}
 
-    chi2, p_value, _dof, _expected = stats.chi2_contingency(contingency)
+    chi2_test, p_value, _dof, _expected = stats.chi2_contingency(contingency)
+    # O V de Cramér é definido a partir da estatística qui-quadrado de
+    # Pearson (sem correção de continuidade). O scipy aplica a correção
+    # de Yates por padrão em tabelas 2x2, o que reduziria o V; por isso
+    # o V usa o qui-quadrado sem correção, enquanto o p-valor permanece
+    # o do teste padrão do scipy.
+    chi2, _p, _d, _e = stats.chi2_contingency(contingency, correction=False)
 
     n = contingency.values.sum()
     phi2 = chi2 / n
@@ -219,7 +225,7 @@ def compute_chi_square_and_cramers_v(categorical_values: pd.Series, target: pd.S
     cramers_v = float(np.sqrt(phi2_corrected / denominator)) if denominator > 0 else None
 
     return {
-        "chi2": float(chi2),
+        "chi2": float(chi2_test),
         "p_value": float(p_value),
         "cramers_v": cramers_v,
         "n": int(paired.shape[0]),
@@ -273,7 +279,10 @@ def _leakage_signal(result: dict[str, Any], config: AutoEDAConfig) -> dict[str, 
 
     Critério 1: associação principal (correlação/V de Cramér) >=
     leakage_association_threshold. Critério 2: AUC de variável única
-    >= leakage_auc_threshold (captura relações de limiar/não lineares).
+    >= leakage_auc_threshold, com ao menos leakage_auc_min_observations
+    observações pareadas (captura relações monotônicas, inclusive de
+    limiar; não captura relações não monotônicas). Ambos são indícios
+    de possível vazamento do alvo, não prova.
     """
     value = _get_association_value(result)
     if value is not None and abs(value) >= config.leakage_association_threshold:
@@ -284,7 +293,12 @@ def _leakage_signal(result: dict[str, Any], config: AutoEDAConfig) -> dict[str, 
         }
 
     auc = result["metrics"].get("auc")
-    if auc is not None and auc >= config.leakage_auc_threshold:
+    n_obs = result["metrics"].get("n") or 0
+    if (
+        auc is not None
+        and n_obs >= config.leakage_auc_min_observations
+        and auc >= config.leakage_auc_threshold
+    ):
         return {"predictor": result["predictor"], "association": auc, "metric": "auc"}
 
     return None

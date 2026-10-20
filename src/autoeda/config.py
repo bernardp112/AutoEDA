@@ -104,9 +104,16 @@ NEAR_ZERO_VARIANCE_TOP_VALUE_PCT_THRESHOLD = 0.90  # 90%
 
 # AUC de uma única variável contra o target a partir do qual ela é
 # candidata a vazamento direto (usa max(AUC, 1-AUC)). Captura
-# relações não lineares/de limiar (ex.: target = x > 0) que a
-# correlação de Point-Biserial subestima.
+# relações monotônicas, inclusive de limiar (ex.: target = x > 0), que
+# a correlação de Point-Biserial subestima. Não captura relações não
+# monotônicas (ex.: target = |x| > 1, cuja AUC fica próxima de 0,5).
 LEAKAGE_AUC_THRESHOLD = 0.99
+
+# Número mínimo de observações pareadas (variável, target) para o
+# critério de AUC poder sinalizar vazamento. Com poucas observações,
+# uma AUC alta ocorre facilmente por acaso (com 12 observações e 200
+# variáveis de ruído, a maior AUC chegou a ~0,97).
+LEAKAGE_AUC_MIN_OBSERVATIONS = 30
 
 # VIF (Variance Inflation Factor) a partir do qual uma variável é
 # sinalizada como candidata a multicolinearidade relevante. 5.0 é o
@@ -180,6 +187,7 @@ class AutoEDAConfig:
     near_zero_variance_unique_pct_threshold: float = NEAR_ZERO_VARIANCE_UNIQUE_PCT_THRESHOLD
     near_zero_variance_top_value_pct_threshold: float = NEAR_ZERO_VARIANCE_TOP_VALUE_PCT_THRESHOLD
     leakage_auc_threshold: float = LEAKAGE_AUC_THRESHOLD
+    leakage_auc_min_observations: int = LEAKAGE_AUC_MIN_OBSERVATIONS
     vif_threshold: float = VIF_THRESHOLD
     scale_disparity_ratio_threshold: float = SCALE_DISPARITY_RATIO_THRESHOLD
     high_cardinality_warning_threshold: int = HIGH_CARDINALITY_WARNING_THRESHOLD

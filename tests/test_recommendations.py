@@ -76,3 +76,28 @@ class TestLanguageOutput:
         result = _full_pipeline(simple_binary_df, "target", config_en)
         leakage_rec = next(r for r in result["recommendations"] if r["problem_type"] == "data_leakage")
         assert "training set" in leakage_rec["recommendation"] or "train" in leakage_rec["recommendation"].lower()
+
+
+class TestClassImbalance:
+    """RF12: desbalanceamento de classes."""
+
+    def test_imbalanced_target_is_reported_and_recommended(self, config):
+        import numpy as np
+        import pandas as pd
+
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame({"x": rng.normal(size=400), "target": [0] * 360 + [1] * 40})
+        target_res = analyze_target(df, "target", config)
+        dist = target_res["distribution"] if "distribution" in target_res else target_res["target_distribution"]
+        assert dist["imbalance_ratio"] == pytest.approx(9.0)
+        result = _full_pipeline(df, "target", config)
+        assert any(r["metric"] == "imbalance_ratio" for r in result["recommendations"])
+
+    def test_balanced_target_has_no_imbalance_recommendation(self, config):
+        import numpy as np
+        import pandas as pd
+
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame({"x": rng.normal(size=400), "target": [0] * 200 + [1] * 200})
+        result = _full_pipeline(df, "target", config)
+        assert not any(r["metric"] == "imbalance_ratio" for r in result["recommendations"])

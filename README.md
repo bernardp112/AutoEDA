@@ -40,6 +40,21 @@ Requer Python 3.10+.
 > $env:PYTHONPATH = "src"; python examples\example_real_dataset.py
 > ```
 
+## Demonstração rápida
+
+Para ver o AutoEDA funcionando sem precisar de nenhum arquivo de dados, rode o script de demonstração (com o pacote instalado):
+
+```bash
+python examples/example_basic.py                 # relatório em português
+python examples/example_basic.py --lang en-us    # relatório em inglês
+```
+
+Ele gera um dataset sintético com problemas conhecidos (valores ausentes, outliers, coluna constante, identificador, variáveis redundantes e uma variável que "vaza" o alvo), executa a análise e imprime as recomendações de severidade alta e média. Os artefatos ficam em `autoeda_demo_output/` (`report.md`, `recommendations.json` e a pasta `charts/`).
+
+Para usar um arquivo seu (CSV, Excel, Parquet, JSON etc.): `python examples/example_real_dataset.py --input meus_dados.csv --target coluna_alvo`.
+
+Para reproduzir a validação do relatório técnico, ver [docs/validation.md](docs/validation.md).
+
 ## Uso básico
 
 ```python
@@ -77,18 +92,26 @@ result = autoeda(df, target="inadimplente", lang="en-us")
 | **Valores ausentes** | Severidade por coluna, indícios de mecanismo (MCAR/MAR/MNAR — sempre como indício, nunca confirmação), ausência condicionada às classes do target |
 | **Outliers** | Detecção via IQR (ou Z-score), sem remoção automática |
 | **Correlação / multicolinearidade** | Pearson, Spearman, VIF (Variance Inflation Factor), disparidade de escala entre variáveis |
-| **Relação com o target** | Point-Biserial + Mutual Information (numérica), Qui-quadrado + V de Cramér (categórica nominal), Spearman (categórica ordinal), desbalanceamento de classes, alerta de possível vazamento de dados |
+| **Relação com o target** | Point-Biserial + Mutual Information (numérica), Qui-quadrado + V de Cramér (categórica nominal), Spearman (categórica ordinal), desbalanceamento de classes, indícios de possível vazamento do alvo (associação quase perfeita ou AUC de variável única muito alta) |
 
 ## Escopo e limitações (por design)
 
 - **Restrito a classificação binária**: a coluna alvo precisa ter exatamente 2 classes. Datasets multiclasse ou de regressão não são suportados nesta versão.
-- **Não remove nada automaticamente**: toda recomendação é uma sugestão para o usuário avaliar (remoção de coluna, imputação, encoding, etc.).
+- **Não remove nada automaticamente**: toda recomendação é uma sugestão para o usuário avaliar (remoção de coluna, imputação, encoding, etc.), redigida em linguagem de sugestão ("considerar", "avaliar").
 - **Não decide o mecanismo de dados ausentes com certeza**: MCAR/MAR/MNAR nunca podem ser determinados só a partir dos dados — o AutoEDA reporta indícios, não conclusões.
-- **Alerta de Data Leakage é um lembrete de processo**, não uma detecção: o AutoEDA calcula estatísticas sobre o dataset completo (para fins de diagnóstico exploratório) e sempre lembra o usuário de recalcular tudo apenas no conjunto de treino antes de aplicar ao teste.
+- **Vazamento de dados: o AutoEDA aponta candidatas, não prova.** Ele sinaliza variáveis cuja associação com o alvo é quase perfeita (correlação ou V de Cramér ≥ 0,95) ou cuja AUC isolada é ≥ 0,99 (com pelo menos 30 observações). Isso **não** detecta contaminação entre treino e teste (o AutoEDA analisa o dataset completo, para diagnóstico) nem vazamento que dependa da combinação de várias variáveis ou de relações não monotônicas. A recomendação de separar treino e teste antes de ajustar qualquer transformação é sempre emitida.
+- **Os limiares são heurísticas**, não testes estatísticos: todos são configuráveis em `AutoEDAConfig`.
+
+Detalhes e limites de cada técnica estatística: [docs/statistical_notes.md](docs/statistical_notes.md).
 
 ## Estrutura do projeto
 
 ```
+examples/
+├── example_basic.py           # demonstração com dados sintéticos (sem arquivos externos)
+└── example_real_dataset.py    # carrega CSV/Excel/Parquet/JSON e roda a análise
+docs/                          # arquitetura, notas estatísticas, validação
+tests/                         # suíte pytest (121 casos de teste coletados)
 src/autoeda/
 ├── core.py              # função pública autoeda() — ponto de entrada da API
 ├── config.py             # thresholds e configurações (AutoEDAConfig)
@@ -116,9 +139,19 @@ Fluxo de dados: `core.autoeda()` valida a entrada → roda os módulos de `analy
 
 ```bash
 pip install -e ".[dev]"
-pytest
+pytest                                   # 121 testes
+pytest --cov=autoeda --cov-report=term   # cobertura (94% das instruções na última medição)
 ```
+
+Os testes usam apenas dados sintéticos gerados no próprio código (com semente fixa), sem depender de arquivos externos.
+
+## Documentação
+
+- [docs/architecture.md](docs/architecture.md) — arquitetura e decisões de design.
+- [docs/statistical_notes.md](docs/statistical_notes.md) — técnicas estatísticas, premissas e limitações.
+- [docs/validation.md](docs/validation.md) — como reproduzir a validação com conjuntos públicos.
+- [CHANGELOG.md](CHANGELOG.md) — histórico de mudanças.
 
 ## Licença
 
-MIT.
+MIT (ver [LICENSE](LICENSE)).

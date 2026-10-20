@@ -34,6 +34,19 @@ class TestAutoedaHappyPath:
         assert result.config.language == "en-us"
         assert result.outliers["method"] == "zscore"
 
+    def test_input_dataframe_is_not_modified(self, messy_df, tmp_path):
+        # RNF02: a biblioteca não pode alterar o DataFrame de entrada.
+        original = messy_df.copy(deep=True)
+        autoeda(messy_df, target="target", output_dir=tmp_path / "saida")
+        pd.testing.assert_frame_equal(messy_df, original)
+
+    def test_results_are_deterministic(self, messy_df, tmp_path):
+        # RNF06: duas execuções sobre os mesmos dados dão o mesmo resultado.
+        first = autoeda(messy_df, target="target", output_dir=tmp_path / "a")
+        second = autoeda(messy_df, target="target", output_dir=tmp_path / "b")
+        assert first.recommendations == second.recommendations
+        assert first.target_analysis == second.target_analysis
+
 
 class TestAutoedaValidationErrors:
     def test_none_target_raises(self, simple_binary_df, tmp_path):

@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
-    { name = "Bernardo" },
+    { name = "Bernardo de Souza Silva" },
 ]
 keywords = ["eda", "exploratory-data-analysis", "data-science", "machine-learning", "classification", "data-quality"]
 classifiers = [
