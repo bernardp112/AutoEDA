@@ -54,7 +54,7 @@ TRANSLATIONS: dict[str, str] = {
     ),
     "rec.missing_generic.explanation": "Coluna com {pct} de valores ausentes. {reason}",
     "rec.missing_correlated.recommendation": (
-        "Investigar se a ausência conjunta de '{column_a}' e '{column_b}' reflete "
+        "Considerar investigar se a ausência conjunta de '{column_a}' e '{column_b}' reflete "
         "um processo comum (ex.: mesma etapa opcional de coleta) antes de imputar "
         "cada coluna separadamente."
     ),
@@ -80,7 +80,7 @@ TRANSLATIONS: dict[str, str] = {
         "Considerar aplicar winsorização (capping) nos valores extremos de '{column}'."
     ),
     "rec.outliers.recommendation_medium": (
-        "Investigar manualmente os valores extremos de '{column}' antes de tratá-los."
+        "Considerar investigar manualmente os valores extremos de '{column}' antes de tratá-los."
     ),
     "rec.outliers.reason_low": "baixo, compatível com ruído pontual",
     "rec.outliers.reason_medium": (
@@ -93,7 +93,7 @@ TRANSLATIONS: dict[str, str] = {
     ),
 
     # --- recommendations: descritivas ---------------------------------
-    "rec.duplicate_rows.recommendation": "Remover linhas duplicadas antes de qualquer análise/modelagem.",
+    "rec.duplicate_rows.recommendation": "Avaliar remover linhas duplicadas antes de qualquer análise/modelagem.",
     "rec.duplicate_rows.explanation": (
         "{count} linha(s) duplicada(s) ({pct} do dataset). Linhas duplicadas "
         "distorcem estatísticas descritivas e podem causar vazamento de dados "
@@ -124,7 +124,7 @@ TRANSLATIONS: dict[str, str] = {
         "esparsas; técnicas de encoding baseadas em frequência/target ou o "
         "agrupamento de categorias raras em 'outros' tendem a generalizar melhor."
     ),
-    "rec.constant.recommendation": "Remover a coluna '{column}' do dataset.",
+    "rec.constant.recommendation": "Avaliar remover a coluna '{column}' do dataset (constante: não carrega informação).",
     "rec.constant.explanation": (
         "Coluna constante (um único valor em toda a amostra). Uma coluna "
         "constante tem variância zero e não pode, por definição, contribuir "
@@ -140,7 +140,7 @@ TRANSLATIONS: dict[str, str] = {
         "sensíveis a features de baixa variância."
     ),
     "rec.mixed_type.recommendation": (
-        "Padronizar o formato de '{column}' (ex.: converter valores por extenso "
+        "Considerar padronizar o formato de '{column}' (ex.: converter valores por extenso "
         "para número, ou tratá-los como categoria 'inválido') antes de qualquer análise."
     ),
     "rec.mixed_type.explanation": (
@@ -171,7 +171,7 @@ TRANSLATIONS: dict[str, str] = {
         "isolado parece fortemente correlacionado."
     ),
     "rec.scale_disparity.recommendation": (
-        "Padronizar (StandardScaler) ou normalizar as variáveis numéricas antes "
+        "Considerar padronizar (StandardScaler) ou normalizar as variáveis numéricas antes "
         "de modelos sensíveis a escala (ex.: KNN, SVM, regressão com "
         "regularização L1/L2)."
     ),
@@ -196,7 +196,7 @@ TRANSLATIONS: dict[str, str] = {
         "F1, recall da classe minoritária ou AUC-ROC."
     ),
     "rec.target_leakage.recommendation": (
-        "Investigar se '{predictor}' é uma proxy do próprio target (ex.: "
+        "Avaliar se '{predictor}' é uma proxy do próprio target (ex.: "
         "preenchida após o evento que o target representa) antes de usá-la "
         "como preditora."
     ),
@@ -208,7 +208,7 @@ TRANSLATIONS: dict[str, str] = {
         "generalizar para produção."
     ),
     "rec.target_strong_predictors.recommendation": (
-        "Priorizar essas variáveis na seleção de features do modelo."
+        "Considerar priorizar essas variáveis na seleção de features do modelo."
     ),
     "rec.target_strong_predictors.explanation": (
         "{n} variável(is) com associação forte ao target: {predictors}. "
@@ -216,14 +216,14 @@ TRANSLATIONS: dict[str, str] = {
         "Spearman elevados) tendem a carregar mais sinal preditivo."
     ),
     "rec.target_multiple_comparisons.recommendation": (
-        "Interpretar os p-valores individuais dos testes de associação com "
+        "Considerar interpretar os p-valores individuais dos testes de associação com "
         "cautela; preferir os preditores com maior força de associação (não só "
         "significância) na seleção de features."
     ),
 
     # --- recommendations: data leakage (workflow) -------------------------
     "rec.data_leakage.recommendation": (
-        "Separar treino e teste antes de calcular qualquer estatística de "
+        "Recomenda-se separar treino e teste antes de calcular qualquer estatística de "
         "preparação de dados; ajustar imputação, normalização, seleção de "
         "features e SMOTE apenas no conjunto de treino, e aplicar as mesmas "
         "transformações (já ajustadas) ao conjunto de teste."

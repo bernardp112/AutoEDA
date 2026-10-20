@@ -127,3 +127,32 @@ class TestLeakageViaSingleFeatureAuc:
         rng = np.random.default_rng(1)
         df = pd.DataFrame({"a": rng.normal(size=500), "y": rng.integers(0, 2, size=500)})
         assert analyze_target(df, "y", config)["possible_leakage"] == []
+
+    def test_auc_criterion_requires_minimum_observations(self, config):
+        # Com poucas observações, uma AUC perfeita pode ser acaso: não deve sinalizar.
+        df = pd.DataFrame({"x": np.arange(12, dtype=float), "y": [0] * 6 + [1] * 6})
+        assert analyze_target(df, "y", config)["possible_leakage"] == []
+
+    def test_non_monotonic_threshold_is_not_detected_by_auc(self, config):
+        # Limitação documentada: relações não monotônicas ficam fora do critério de AUC.
+        rng = np.random.default_rng(0)
+        x = rng.normal(size=3000)
+        df = pd.DataFrame({"x": x, "y": (np.abs(x) > 1).astype(int)})
+        result = analyze_target(df, "y", config)
+        assert all(item["predictor"] != "x" for item in result["possible_leakage"])
+
+
+class TestCramersVWithoutContinuityCorrection:
+    def test_v_matches_pearson_chi_square_for_2x2(self):
+        rng = np.random.default_rng(0)
+        a = pd.Series(rng.integers(0, 2, 400))
+        b = pd.Series(np.where(rng.random(400) < 0.8, a, 1 - a))
+        result = compute_chi_square_and_cramers_v(a, b)
+        n = len(a)
+        phi = np.sqrt(result["chi2"] / n)  # chi2 do teste padrão (Yates) é <= Pearson
+        # V (com correção de Bergsma) deve ser ~ phi calculado do qui-quadrado de Pearson
+        from scipy import stats
+
+        pearson = stats.chi2_contingency(pd.crosstab(a, b), correction=False)[0]
+        assert result["cramers_v"] == pytest.approx(np.sqrt(max(0, pearson / n - 1 / (n - 1)) / (1 - 1 / (n - 1))), rel=1e-6)
+        assert phi <= np.sqrt(pearson / n) + 1e-12

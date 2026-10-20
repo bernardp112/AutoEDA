@@ -73,7 +73,7 @@ As chaves usam namespace por ponto (`rec.*` para recomendações, `report.*` par
 
 ## Schema das recomendações
 
-Cada recomendação segue um schema fixo (definido a partir do formato pedido pelo orientador do projeto):
+Cada recomendação segue um schema fixo :
 
 ```json
 {
@@ -101,7 +101,9 @@ Toda exceção do AutoEDA herda de `AutoEDAError` (`exceptions.py`). A validaç�
 
 ## Limitações conhecidas / trabalho futuro
 
-- **Classificação binária apenas**: multiclasse e regressão estão fora do escopo atual (decisão do orientador do projeto).
-- **Testes automatizados**: `tests/` ainda não tem casos formais em `pytest` — a validação até aqui foi feita via scripts ad-hoc durante o desenvolvimento. Portar esses cenários para `pytest` é o próximo passo natural.
-- **Validação com datasets públicos reais**: ainda não foi feita (ver seção de validação do escopo original do projeto).
+- **Classificação binária apenas**: multiclasse e regressão estão fora do escopo atual.
+- **Testes automatizados**: a suíte `pytest` em `tests/` tem 121 testes (um arquivo por módulo, dados sintéticos com semente fixa) e cobertura de 94% das instruções na última medição.
+- **Validação com conjuntos públicos**: feita com o Breast Cancer Wisconsin e o College Major ROI (sintético); ver [validation.md](validation.md) para reproduzir e para os limites da validação. Não foi medido se seguir as recomendações melhora modelos.
+- **Detecção de vazamento limitada**: apenas candidatas por associação quase perfeita ou AUC de variável única; não detecta contaminação treino/teste, combinações de variáveis nem relações não monotônicas (ver [statistical_notes.md](statistical_notes.md)).
 - **Ordinalidade detectada por dtype, não por metadado explícito** (ver seção "Tipagem lógica de colunas" acima).
+- **Volume de alertas** em conjuntos com muitas variáveis redundantes (um alerta por par correlacionado).

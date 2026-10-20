@@ -50,7 +50,7 @@ TRANSLATIONS: dict[str, str] = {
     ),
     "rec.missing_generic.explanation": "Column with {pct} of missing values. {reason}",
     "rec.missing_correlated.recommendation": (
-        "Investigate whether the joint missingness of '{column_a}' and "
+        "Consider investigating whether the joint missingness of '{column_a}' and "
         "'{column_b}' reflects a common process (e.g., the same optional "
         "collection step) before imputing each column separately."
     ),
@@ -77,7 +77,7 @@ TRANSLATIONS: dict[str, str] = {
         "Consider applying winsorization (capping) to the extreme values of '{column}'."
     ),
     "rec.outliers.recommendation_medium": (
-        "Manually investigate the extreme values of '{column}' before treating them."
+        "Consider manually investigating the extreme values of '{column}' before treating them."
     ),
     "rec.outliers.reason_low": "low, consistent with isolated noise",
     "rec.outliers.reason_medium": (
@@ -90,7 +90,7 @@ TRANSLATIONS: dict[str, str] = {
     ),
 
     # --- recommendations: descriptive ---------------------------------
-    "rec.duplicate_rows.recommendation": "Remove duplicate rows before any analysis/modeling.",
+    "rec.duplicate_rows.recommendation": "Consider removing duplicate rows before any analysis/modeling.",
     "rec.duplicate_rows.explanation": (
         "{count} duplicate row(s) ({pct} of the dataset). Duplicate rows "
         "distort descriptive statistics and can cause data leakage between "
@@ -121,7 +121,7 @@ TRANSLATIONS: dict[str, str] = {
         "columns; frequency/target-based encoding or grouping rare categories "
         "into 'other' tends to generalize better."
     ),
-    "rec.constant.recommendation": "Remove the '{column}' column from the dataset.",
+    "rec.constant.recommendation": "Consider removing the '{column}' column from the dataset (constant: carries no information).",
     "rec.constant.explanation": (
         "Constant column (a single value across the whole sample). A constant "
         "column has zero variance and, by definition, cannot contribute to "
@@ -137,7 +137,7 @@ TRANSLATIONS: dict[str, str] = {
         "sensitive to low-variance features."
     ),
     "rec.mixed_type.recommendation": (
-        "Standardize the format of '{column}' (e.g., convert spelled-out "
+        "Consider standardizing the format of '{column}' (e.g., convert spelled-out "
         "values to numbers, or treat them as an 'invalid' category) before "
         "any analysis."
     ),
@@ -169,7 +169,7 @@ TRANSLATIONS: dict[str, str] = {
         "pair looks strongly correlated."
     ),
     "rec.scale_disparity.recommendation": (
-        "Standardize (StandardScaler) or normalize the numeric variables "
+        "Consider standardizing (StandardScaler) or normalizing the numeric variables "
         "before scale-sensitive models (e.g., KNN, SVM, L1/L2-regularized regression)."
     ),
     "rec.scale_disparity.explanation": (
@@ -192,7 +192,7 @@ TRANSLATIONS: dict[str, str] = {
         "minority-class recall, or AUC-ROC."
     ),
     "rec.target_leakage.recommendation": (
-        "Investigate whether '{predictor}' is a proxy for the target itself "
+        "Evaluate whether '{predictor}' is a proxy for the target itself "
         "(e.g., filled in after the event the target represents) before using "
         "it as a predictor."
     ),
@@ -203,7 +203,7 @@ TRANSLATIONS: dict[str, str] = {
         "model's train/validation performance without generalizing to production."
     ),
     "rec.target_strong_predictors.recommendation": (
-        "Prioritize these variables in the model's feature selection."
+        "Consider prioritizing these variables in the model's feature selection."
     ),
     "rec.target_strong_predictors.explanation": (
         "{n} variable(s) with a strong association with the target: {predictors}. "
@@ -211,14 +211,14 @@ TRANSLATIONS: dict[str, str] = {
         "or Spearman) tend to carry more predictive signal."
     ),
     "rec.target_multiple_comparisons.recommendation": (
-        "Interpret the individual p-values of the association tests with "
+        "Consider interpreting the individual p-values of the association tests with "
         "caution; prefer predictors with higher association strength (not just "
         "significance) when selecting features."
     ),
 
     # --- recommendations: data leakage (workflow) -------------------------
     "rec.data_leakage.recommendation": (
-        "Split train and test before computing any data-preparation statistic; "
+        "It is recommended to split train and test before computing any data-preparation statistic; "
         "fit imputation, normalization, feature selection, and SMOTE only on "
         "the training set, and apply the same (already-fitted) transformations "
         "to the test set."
